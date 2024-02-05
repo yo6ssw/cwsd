@@ -17,7 +17,7 @@ std::vector<uint8_t> cw_daemon::to_winkeyer(std::vector<uint8_t> input, uint8_t 
             switch (*ptr) {
                 case '-': {
                     int times = 0;
-                    for (; *ptr == '-'; *ptr++, times++);
+                    for (; *ptr == '-'; ptr++, times++);
                     result.push_back(0x1c);
                     current_speed -= 2 * times;
                     std::cout << "- pushing buffered speed to " << (int) current_speed << std::endl;
@@ -27,7 +27,7 @@ std::vector<uint8_t> cw_daemon::to_winkeyer(std::vector<uint8_t> input, uint8_t 
                 }
                 case '+': {
                     int times = 0;
-                    for (; *ptr == '+'; *ptr++, times++);
+                    for (; *ptr == '+'; ptr++, times++);
                     result.push_back(0x1c);
                     current_speed += 2 * times;
                     result.push_back(current_speed);

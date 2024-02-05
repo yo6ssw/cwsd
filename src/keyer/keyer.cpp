@@ -14,11 +14,11 @@
 
 namespace keyer {
 
-
     keyer_internal_state data;
     hw_interface *hardware;
     profile profiles[3];
     uint8_t current_profile = 0;
+
 
     static float audio_level_from_percentage(uint8_t percentage) {
         // https://www.dr-lex.be/info-stuff/volumecontrols.html#ideal3
@@ -296,7 +296,7 @@ namespace keyer {
             }
         }
 
-        if (!execute_pending_command && is_winkeyer_command(c) && !is_winkeyer_buffered_command(c)) {
+        if (!execute_pending_command && data.winkeyer_remaining_buffered_arguments == 0 && is_winkeyer_command(c) && !is_winkeyer_buffered_command(c)) {
             data.winkeyer_pending_command = c;
             data.winkeyer_waiting_for_arguments = winkey_commands_parameter_count[c];
             data.winkeyer_argument_index = 0;
@@ -311,6 +311,7 @@ namespace keyer {
             // execute
             switch (data.winkeyer_pending_command) {
                 case 0x02: // set speed
+                    printf("Setting winkeyer speed to %d from %f",data.winkeyer_arguments[0], data.winkeyer_speed_wpm);
                     data.winkeyer_speed_wpm = data.winkeyer_arguments[0];
                     set_speed(data.winkeyer_arguments[0]);
                     // printf("winkeyer: setting wpm speed to %d\n", data.winkeyer_arguments[0]);
@@ -328,6 +329,13 @@ namespace keyer {
             }
         } else {
             data.winkeyer_buffer.put(c);
+            if (data.winkeyer_remaining_buffered_arguments > 0) {
+                data.winkeyer_remaining_buffered_arguments --;
+            } else {
+                if (is_winkeyer_command(c) && is_winkeyer_buffered_command(c)) {
+                    data.winkeyer_remaining_buffered_arguments = winkey_commands_parameter_count[c];
+                }
+            }
         }
     }
 
