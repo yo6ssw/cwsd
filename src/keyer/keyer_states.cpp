@@ -22,6 +22,8 @@ namespace keyer {
                 return "autospace";
             case winkeyer:
                 return "winkeyer";
+            case half_dot_gap:
+                return "half_dot_gap";
             default:
                 return "<unknown>";
         }

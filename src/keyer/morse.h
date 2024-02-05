@@ -21,7 +21,7 @@ struct code_timings {
 };
 
 struct code_style {
-    uint8_t impulses_between_words = 7;
+    uint8_t impulses_between_words = 6;
     uint8_t impulses_between_characters = 3;
     bool autospace_enabled = true;
     float dah_dit_ratio = 3.0f;

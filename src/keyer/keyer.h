@@ -133,7 +133,7 @@ namespace keyer {
 
     extern hw_interface *hardware;
 
-    void init(hw_interface *hw, float audio_samplerate);
+    void init(hw_interface *hw);
 //    void set_property_changed_callback(property_changed_callback cb);
     void update();
     void audio_tick(int16_t& left, int16_t& right);
