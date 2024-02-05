@@ -316,6 +316,10 @@ namespace keyer {
                     // printf("winkeyer: setting wpm speed to %d\n", data.winkeyer_arguments[0]);
                     hardware->on_parameters_changed();
                     break;
+                case 0x03: // weighting
+                    printf("setting weighting to %d\n", data.winkeyer_arguments[0]);
+                    get_current_profile().set_weighting(data.winkeyer_arguments[0]);
+                    break;
                 case 0x0A: // clear buffer
                     data.winkeyer_buffer.reset();
                     break;

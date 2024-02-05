@@ -36,7 +36,7 @@ code_timings code_style::calculate_timings() {
 
     // interpolate dynamic attributes
     dah_dit_ratio = map(character_wpm, speed_low, speed_high, dah_dit_ratio_low, dah_dit_ratio_high);
-    weighting = map(character_wpm, speed_low, speed_high, weighting_low, weighting_high);
+//    weighting = map(character_wpm, speed_low, speed_high, weighting_low, weighting_high);
     extra_letterspace_percent = map(character_wpm, speed_low, speed_high, extra_letterspace_percent_low, extra_letterspace_percent_high);
 
     float impulsesPerMinute = character_wpm * (non_space_impulses_in_paris() + space_impulses_in_paris());

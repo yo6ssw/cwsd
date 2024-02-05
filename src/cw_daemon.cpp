@@ -70,6 +70,14 @@ std::vector<uint8_t> cw_daemon::to_winkeyer(std::vector<uint8_t> input, uint8_t 
                 result.push_back(0x0A);
                 break;
             }
+            case '7': {
+                unsigned char weight = 50 + std::stoi(&buffer[2]);
+                if (weight < 10) weight = 10;
+                if (weight > 90) weight = 90;
+                result.push_back(0x03);
+                result.push_back(weight);
+                break;
+            }
             default:
                 break;
         }
