@@ -43,7 +43,8 @@ std::vector<uint8_t> cw_daemon::to_winkeyer(std::vector<uint8_t> input, uint8_t 
                 default:
                     if (*ptr >= 32) {
                         // std::cout << "- pushing [" << *ptr << "]" << std::endl;
-                        result.push_back(*ptr);
+
+                        result.push_back(std::toupper(*ptr));
                         // keyer::winkeyer_data(*ptr);
                         if (is_gap) {
                             result.push_back('|');
