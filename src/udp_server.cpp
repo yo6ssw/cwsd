@@ -52,9 +52,13 @@ bool udp_server::receive() {
             n--;
         }
 
-        message = std::vector<uint8_t>(buffer, buffer + n);
         buffer[n] = 0;
-        std::cout << "- client sent [" << buffer << "]" << std::endl;
+        message = std::vector<uint8_t>(buffer, buffer + n + 1);
+        std::cout << "- client sent [";
+        for (auto &c : message)
+            std::cout << c;
+
+        std::cout << "]" << std::endl;
         return true;
     } else {
         return false;

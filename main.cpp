@@ -63,7 +63,7 @@ void client_worker(udp_server *server) {
     for (;;) {
         if (server->receive()) {
             auto speed = static_cast<unsigned char>(keyer::get_speed());
-            auto wk_data = cw_daemon::to_winkeyer(server->last_message(), speed);
+            auto wk_data = cw_daemon::to_winkeyer(server->  last_message(), speed);
             for (auto &c: wk_data) {
                 keyer::winkeyer_data(c);
             }
