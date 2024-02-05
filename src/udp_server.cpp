@@ -44,7 +44,8 @@ bool udp_server::receive() {
                             reinterpret_cast<struct sockaddr *>(&client_addr),
                             &client_addr_len);
     if (n < 0 && errno != EAGAIN) {
-        throw std::runtime_error("recvfrom failed");
+//        throw std::runtime_error("recvfrom failed with errno " + errno);
+        return false;
     }
 
     if (n > 0) {

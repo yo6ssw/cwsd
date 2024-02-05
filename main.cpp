@@ -67,6 +67,8 @@ void client_worker(udp_server *server) {
             for (auto &c: wk_data) {
                 keyer::winkeyer_data(c);
             }
+            int a = 3;
+            a++;
         }
     }
 }

@@ -97,6 +97,7 @@ namespace keyer {
         uint8_t winkeyer_argument_index;
         float winkeyer_speed_wpm;
         uint32_t last_send_time;
+        uint8_t winkeyer_remaining_buffered_arguments = 0;
     } data;
 
     struct hw_interface {
