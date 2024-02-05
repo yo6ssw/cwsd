@@ -10,13 +10,11 @@
 #include "keyer_state_play.h"
 #include "keyer_state_key_down.h"
 #include "keyer_state_tune.h"
-#include "audio_renderer.h"
+#include "keyer_state_half_dot_gap.h"
 
 namespace keyer {
 
-    renderer audio_renderer;
 
-//    property_changed_callback property_changed_cb = nullptr;
     keyer_internal_state data;
     hw_interface *hardware;
     profile profiles[3];
@@ -45,12 +43,6 @@ namespace keyer {
         profile.update_timings();
 
         data.winkeyer_speed_wpm = profile.get_speed();
-
-        audio_renderer.set_frequency(profile.sidetone.frequency);
-        audio_renderer.set_wave_type(static_cast<wave_type>(profile.sidetone.wave_type));
-        audio_renderer.set_level(audio_level_from_percentage(profile.sidetone.level));
-        audio_renderer.set_ramp_up_time(profile.sidetone.ramp_up_ms);
-        audio_renderer.set_ramp_down_time(profile.sidetone.ramp_down_ms);
     }
 
     void next_profile() {
@@ -95,11 +87,9 @@ namespace keyer {
         if (on) {
             hardware->tone_on(get_current_profile().sidetone.frequency);
             hardware->on_key_down();
-            audio_renderer.key_down();
         } else {
             hardware->tone_off();
             hardware->on_key_up();
-            audio_renderer.key_up();
         }
     }
 
@@ -141,6 +131,7 @@ namespace keyer {
             state_play::instance(),
             state_autospace::instance(),
             state_winkeyer::instance(),
+            state_half_dot_gap::instance(),
     };
 
     void switch_to(state_type next_state) {
@@ -164,8 +155,7 @@ namespace keyer {
         return true;
     }
 
-    void init(hw_interface *hw_, float audio_samplerate) {
-        audio_renderer = renderer{audio_samplerate};
+    void init(hw_interface *hw_) {
         hardware = hw_;
 
         data.winkeyer_speed_wpm = get_current_profile().get_speed();
@@ -194,36 +184,27 @@ namespace keyer {
         }
     }
 
-    void audio_tick(int16_t& left, int16_t& right) {
-        audio_renderer.tick(left, right);
-    }
-
     void set_speed(float wpm) {
         get_current_profile().set_speed(wpm);
     }
 
     void set_frequency(uint16_t hz) {
-        audio_renderer.set_frequency(hz);
         get_current_profile().sidetone.frequency = hz;
     }
 
     void set_sidetone_wavetype(wave_type type) {
-        audio_renderer.set_wave_type(type);
         get_current_profile().sidetone.wave_type = static_cast<uint8_t>(type);
     }
 
     void set_sidetone_level(uint8_t level) {
-        audio_renderer.set_level(audio_level_from_percentage(level));
         get_current_profile().sidetone.level = level;
     }
 
     void set_sidetone_ramp_up_ms(uint8_t ms) {
-        audio_renderer.set_ramp_up_time(ms);
         get_current_profile().sidetone.ramp_up_ms = ms;
     }
 
     void set_sidetone_ramp_down_ms(uint8_t ms) {
-        audio_renderer.set_ramp_down_time(ms);
         get_current_profile().sidetone.ramp_down_ms = ms;
     }
 
@@ -375,6 +356,9 @@ namespace keyer {
     }
 
     uint32_t inter_word_space_length_ms() {
+        if (data.winkeyer_enabled) {
+            return element_length_ms(element::dit) * get_current_profile().style.impulses_between_words;
+        }
         return get_current_profile().timings.space_between_words_ms;
     }
 
@@ -451,6 +435,8 @@ namespace keyer {
     }
 
     void profile::set_speed(float wpm) {
+        printf("setting profile speed to %f\n", wpm);
+
         style.character_wpm = wpm;
         style.farnsworth_wpm = wpm;
         timings = style.calculate_timings();

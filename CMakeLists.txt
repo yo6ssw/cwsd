@@ -5,8 +5,6 @@ set(CMAKE_CXX_STANDARD 17)
 
 include_directories("src")
 add_executable(cwsd main.cpp
-        src/keyer/audio_renderer.h
-        src/keyer/audio_renderer.cpp
         src/keyer/keyer.cpp
         src/keyer/keyer.h
         src/keyer/keyer_char_patterns.cpp
@@ -36,4 +34,10 @@ add_executable(cwsd main.cpp
         src/keyer/oscillator.cpp
         src/keyer/oscillator.h
         src/circular_buffer.h
+        src/keyer/keyer_state_half_dot_gap.cpp
+        src/keyer/keyer_state_half_dot_gap.h
+        src/cw_daemon.cpp
+        src/cw_daemon.h
+        src/udp_server.cpp
+        src/udp_server.h
 )

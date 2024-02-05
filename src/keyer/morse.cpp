@@ -1,5 +1,7 @@
 #include "morse.h"
 
+#include <cstdio>
+
 const uint8_t NUMBER_OF_DOTS_IN_PARIS = 10;
 const uint8_t NUMBER_OF_SILENT_DOTS_IN_PARIS = 9;
 const uint8_t NUMBER_OF_DASHES_IN_PARIS = 4;
@@ -29,6 +31,7 @@ float map(float speed, float speed_min, float speed_max, float value_min, float 
 }
 
 code_timings code_style::calculate_timings() {
+    printf("calculate timings\n");
     code_timings speed;
 
     // interpolate dynamic attributes

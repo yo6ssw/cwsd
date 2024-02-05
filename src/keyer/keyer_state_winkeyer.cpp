@@ -93,7 +93,7 @@ namespace keyer {
                 // interpret command
                 switch (c) {
                     case 0x1C: // buffered speed change
-                        // printf("Buffered speed change is %d\n", arguments[0]);
+                        printf("Buffered speed change to %d\n", arguments[0]);
                         data.winkeyer_speed_wpm = arguments[0];
                         break;
                     case 0x0A:
@@ -104,13 +104,19 @@ namespace keyer {
                 }
                 return state_type::winkeyer;
             } else {
-                auto pattern = get_char_pattern(c);
-                if (pattern == nullptr) {
-                    return state_type::inter_word_space;
+                if (c == '|') {
+                    return state_type::half_dot_gap;
                 } else {
-                    data.playing_data = pattern->sent_char_data;
-                    data.playing_bit = pattern->sent_char_bits;
-                    inter_char_space_played = false;
+                    auto pattern = get_char_pattern(c);
+                    if (pattern == nullptr) {
+//                        printf("!!! Pattern not found for char [%c]\n", c);
+                        return state_type::inter_word_space;
+                    } else {
+//                        printf("!!! Sending char [%c]\n", c);
+                        data.playing_data = pattern->sent_char_data;
+                        data.playing_bit = pattern->sent_char_bits;
+                        inter_char_space_played = false;
+                    }
                 }
             }
         }

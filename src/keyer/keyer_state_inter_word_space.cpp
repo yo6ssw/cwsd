@@ -10,9 +10,13 @@ namespace keyer {
 
     state_type state_inter_word_space::update(uint32_t elapsed_ms) {
         poll_paddles();
-        return hardware->current_ms() >= time_to_exit ?
-               (data.winkeyer_enabled ? state_type::winkeyer : state_type::play) :
-               state_type::inter_word_space;
+        auto now = hardware->current_ms();
+        if (now >= time_to_exit) {
+            // allow more spaces one after the other
+            data.last_send_time = now;
+                return data.winkeyer_enabled ? state_type::winkeyer : state_type::play;
+        }
+        return state_type::inter_word_space;
     }
 
 }

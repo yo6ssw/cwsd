@@ -22,6 +22,7 @@ namespace keyer {
         play = 6,
         autospace = 7,
         winkeyer = 8,
+        half_dot_gap = 9,
     };
 
     struct state {

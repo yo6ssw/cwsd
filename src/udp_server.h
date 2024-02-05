@@ -1,0 +1,21 @@
+#ifndef CWSD_UDP_SERVER_H
+#define CWSD_UDP_SERVER_H
+#include <vector>
+#include <cstdint>
+#include <cstdlib>
+
+class udp_server {
+public:
+    udp_server(uint16_t port, timeval read_timeout);
+    bool receive();
+    std::vector<uint8_t> last_message();
+
+private:
+
+    int sockfd;
+    char buffer[1024];
+    std::vector<uint8_t> message;
+};
+
+
+#endif //CWSD_UDP_SERVER_H
