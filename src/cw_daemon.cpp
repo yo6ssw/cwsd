@@ -10,7 +10,7 @@ std::vector<uint8_t> cw_daemon::to_winkeyer(std::vector<uint8_t> input, uint8_t 
 
     std::vector<uint8_t> result;
     bool is_gap = false;
-    std::cout << "Initial speed is " << (int)current_speed << std::endl;
+//    std::cout << "Initial speed is " << (int)current_speed << std::endl;
     if (buffer[0] != 27) {
         auto ptr = buffer;
         while (*ptr > 0) {
@@ -20,7 +20,7 @@ std::vector<uint8_t> cw_daemon::to_winkeyer(std::vector<uint8_t> input, uint8_t 
                     for (; *ptr == '-'; ptr++, times++);
                     result.push_back(0x1c);
                     current_speed -= 2 * times;
-                    std::cout << "- pushing buffered speed to " << (int) current_speed << std::endl;
+//                    std::cout << "- pushing buffered speed to " << (int) current_speed << std::endl;
                     result.push_back(current_speed);
                     // keyer::winkeyer_data(current_speed);
                     break;
@@ -31,7 +31,7 @@ std::vector<uint8_t> cw_daemon::to_winkeyer(std::vector<uint8_t> input, uint8_t 
                     result.push_back(0x1c);
                     current_speed += 2 * times;
                     result.push_back(current_speed);
-                    std::cout << "- pushing buffered speed to " << (int) current_speed << std::endl;
+//                    std::cout << "- pushing buffered speed to " << (int) current_speed << std::endl;
 
                     break;
                 }

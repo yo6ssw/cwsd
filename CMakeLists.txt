@@ -40,4 +40,6 @@ add_executable(cwsd main.cpp
         src/cw_daemon.h
         src/udp_server.cpp
         src/udp_server.h
+        src/timer.cpp
+        src/timer.h
 )

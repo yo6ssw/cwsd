@@ -94,7 +94,7 @@ namespace keyer {
                 // interpret command
                 switch (c) {
                     case 0x1C: // buffered speed change
-                        printf("Buffered speed change to %d. Current winkeyer speed wpm is %f\n", arguments[0], data.winkeyer_speed_wpm);
+//                        printf("Buffered speed change to %d. Current winkeyer speed wpm is %f\n", arguments[0], data.winkeyer_speed_wpm);
                         data.winkeyer_speed_wpm = arguments[0];
                         break;
                     case 0x0A:

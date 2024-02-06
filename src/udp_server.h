@@ -7,6 +7,8 @@
 class udp_server {
 public:
     udp_server(uint16_t port, timeval read_timeout);
+    ~udp_server();
+
     bool receive();
     std::vector<uint8_t> last_message();
 

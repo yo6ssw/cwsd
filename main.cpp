@@ -6,22 +6,8 @@
 #include <sys/ioctl.h>
 #include "udp_server.h"
 #include "cw_daemon.h"
+#include "timer.h"
 
-
-class timer {
-public:
-    timer() {
-        start = std::chrono::high_resolution_clock::now();
-    }
-
-    uint32_t ellapsed_ms() const {
-        const auto now = std::chrono::high_resolution_clock::now();
-        return std::chrono::duration_cast<std::chrono::milliseconds>(now - start).count();
-    }
-
-private:
-    std::chrono::time_point<std::chrono::system_clock> start;
-};
 
 struct key_interface : keyer::hw_interface {
     int fd;
@@ -69,16 +55,22 @@ void usage() {
     exit(1);
 }
 
-
+std::atomic<bool> is_running = true;
 
 void client_worker(udp_server *server, timer *clock) {
     // TODO: fix clean termination
     bool is_tuning = false;
     uint32_t tune_end_time = 0;
-    for (;;) {
+    while (is_running) {
         if (server->receive()) {
             auto speed = static_cast<unsigned char>(keyer::get_speed());
-            auto wk_data = cw_daemon::to_winkeyer(server->last_message(), speed);
+            auto message = server->last_message();
+            if (message.size() > 1 && message[0] == 27 && message[1] == '5') {
+                std::cout << "- received exit command. shutting down" << std::endl;
+                is_running = false;
+                break;
+            }
+            auto wk_data = cw_daemon::to_winkeyer(message, speed);
             if (cw_daemon::is_tuning_command(wk_data)) {
                 is_tuning = true;
                 // cwdaemon ^c command needs a parameter of tune seconds
@@ -96,7 +88,6 @@ void client_worker(udp_server *server, timer *clock) {
             keyer::winkeyer_data(0x0);
             is_tuning = false;
         }
-
     }
 }
 
@@ -118,7 +109,7 @@ int main(int argc, char **argv) {
     std::thread t(client_worker, &server, &clock);
 
     // TODO: figure out a way for graceful shutdown. signal handlers + ctrl interface?
-    while (true) {
+    while (is_running) {
         keyer::update();
         std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }

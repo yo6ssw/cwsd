@@ -31,7 +31,7 @@ float map(float speed, float speed_min, float speed_max, float value_min, float 
 }
 
 code_timings code_style::calculate_timings() {
-    printf("calculate timings\n");
+//    printf("calculate timings\n");
     code_timings speed;
 
     // interpolate dynamic attributes
