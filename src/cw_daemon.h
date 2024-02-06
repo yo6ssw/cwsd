@@ -7,6 +7,8 @@
 class cw_daemon {
 public:
     static std::vector<uint8_t> to_winkeyer(std::vector<uint8_t> input, uint8_t current_speed);
+
+    static bool is_tuning_command(std::vector<uint8_t> message);
 };
 
 

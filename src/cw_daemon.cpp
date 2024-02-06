@@ -79,6 +79,14 @@ std::vector<uint8_t> cw_daemon::to_winkeyer(std::vector<uint8_t> input, uint8_t 
                 result.push_back(weight);
                 break;
             }
+            case 'c': {
+                // immediate key on
+                unsigned char seconds = std::stoi(&buffer[2]);
+                result.push_back(0x0B);
+                result.push_back(1);
+                result.push_back(seconds);
+                break;
+            }
             default:
                 break;
         }
@@ -91,4 +99,8 @@ std::vector<uint8_t> cw_daemon::to_winkeyer(std::vector<uint8_t> input, uint8_t 
     }
 
     return result;
+}
+
+bool cw_daemon::is_tuning_command(std::vector<uint8_t> message) {
+    return message.size() > 2 && message[0] == 0x0B && message[1] == 1;
 }
