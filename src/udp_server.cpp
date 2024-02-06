@@ -7,7 +7,9 @@
 #include <netinet/in.h>
 #include <cstring>
 #include <iostream>
+#include <iomanip>
 #include "udp_server.h"
+#include <unistd.h>
 
 udp_server::udp_server(uint16_t port, timeval read_timeout) {
     if ((sockfd = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
@@ -56,8 +58,14 @@ bool udp_server::receive() {
         buffer[n] = 0;
         message = std::vector<uint8_t>(buffer, buffer + n + 1);
         std::cout << "- client sent [";
-        for (auto &c : message)
-            std::cout << c;
+        for (auto i = 0; i < message.size() - 1; i++) {
+            auto &c = message[i];
+            if (std::isprint(c)) {
+                std::cout << c;
+            } else {
+                std::cout << "(0x" << std::setw(2) << std::setfill('0') << std::uppercase << std::hex << (int)c << ")" << std::dec;
+            }
+        }
 
         std::cout << "]" << std::endl;
         return true;
@@ -68,4 +76,10 @@ bool udp_server::receive() {
 
 std::vector<uint8_t> udp_server::last_message() {
     return message;
+}
+
+udp_server::~udp_server() {
+    if (sockfd > 0) {
+        close(sockfd);
+    }
 }

@@ -311,7 +311,7 @@ namespace keyer {
             // execute
             switch (data.winkeyer_pending_command) {
                 case 0x02: // set speed
-                    printf("Setting winkeyer speed to %d from %f",data.winkeyer_arguments[0], data.winkeyer_speed_wpm);
+//                    printf("Setting winkeyer speed to %d from %f",data.winkeyer_arguments[0], data.winkeyer_speed_wpm);
                     data.winkeyer_speed_wpm = data.winkeyer_arguments[0];
                     set_speed(data.winkeyer_arguments[0]);
                     // printf("winkeyer: setting wpm speed to %d\n", data.winkeyer_arguments[0]);
@@ -454,8 +454,7 @@ namespace keyer {
     }
 
     void profile::set_speed(float wpm) {
-        printf("setting profile speed to %f\n", wpm);
-
+//        printf("setting profile speed to %f\n", wpm);
         style.character_wpm = wpm;
         style.farnsworth_wpm = wpm;
         timings = style.calculate_timings();
