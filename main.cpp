@@ -51,14 +51,21 @@ struct key_interface : keyer::hw_interface {
 };
 
 void usage() {
-    std::cerr << "Usage: ./cwkeyer /path/to/device" << std::endl;
+    std::cerr << "Usage: cwsd /path/to/device" << std::endl;
     exit(1);
 }
 
 std::atomic<bool> is_running = true;
+struct sigaction sigint_hndlr;
+
+void install_signal_handler();
+
+void signal_handler(int s) {
+    std::cerr << "- caught signal " << s << ". closing" << std::endl;
+    is_running = false;
+}
 
 void client_worker(udp_server *server, timer *clock) {
-    // TODO: fix clean termination
     bool is_tuning = false;
     uint32_t tune_end_time = 0;
     while (is_running) {
@@ -74,8 +81,9 @@ void client_worker(udp_server *server, timer *clock) {
             if (cw_daemon::is_tuning_command(wk_data)) {
                 is_tuning = true;
                 // cwdaemon ^c command needs a parameter of tune seconds
-                // we are translating that into winkeyer immediate key on/off commands
-                // which do not take a time parameter
+                // We are translating that into winkeyer immediate key on/off commands which
+                // do not take a time parameter, so we need to remove it from the stream after
+                // we use it to know when to stop the tuning.
                 tune_end_time = clock->ellapsed_ms() + 1000 * wk_data.back();
                 wk_data.pop_back();
             }
@@ -96,22 +104,39 @@ int main(int argc, char **argv) {
         usage();
     }
 
-    timer clock;
-    key_interface iface{argv[1], clock};
-    keyer::init(&iface);
-    keyer::set_speed(30);
+    try {
+        std::cout << "- started with pid " << getpid() << std::endl;
+        install_signal_handler();
 
-    struct timeval timeout{};
-    timeout.tv_sec = 0;
-    timeout.tv_usec = 1000;
+        timer clock;
+        key_interface iface{argv[1], clock};
+        keyer::init(&iface);
+        keyer::set_speed(30);
 
-    udp_server server{6789, timeout};
-    std::thread t(client_worker, &server, &clock);
+        struct timeval timeout{};
+        timeout.tv_sec = 0;
+        timeout.tv_usec = 10000;
 
-    // TODO: figure out a way for graceful shutdown. signal handlers + ctrl interface?
-    while (is_running) {
-        keyer::update();
-        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        udp_server server{6789, timeout};
+        std::thread t(client_worker, &server, &clock);
+
+        while (is_running) {
+            keyer::update();
+            std::this_thread::sleep_for(std::chrono::milliseconds(4));
+        }
+        t.join();
+    } catch (std::exception &e) {
+        std::cerr << "Error: " << e.what();
+        return 1;
     }
-    t.join();
+}
+
+void install_signal_handler() {
+    sigint_hndlr.sa_handler = signal_handler;
+    sigemptyset(&sigint_hndlr.sa_mask);
+    sigint_hndlr.sa_flags = 0;
+
+    sigaction(SIGINT, &sigint_hndlr, nullptr);
+    sigaction(SIGKILL, &sigint_hndlr, nullptr);
+    sigaction(SIGTERM, &sigint_hndlr, nullptr);
 }
