@@ -324,6 +324,13 @@ namespace keyer {
                 case 0x0A: // clear buffer
                     data.winkeyer_buffer.reset();
                     break;
+                case 0x0B: // immediate keying
+                    if (data.winkeyer_arguments[0] == 1) {
+                        hardware->on_key_down();
+                    } else {
+                        hardware->on_key_up();
+                    }
+                    break;
                 default:
                     break;
             }
