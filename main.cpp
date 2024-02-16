@@ -88,7 +88,7 @@ void client_worker(udp_server *server, timer *clock) {
                 keyer::winkeyer_data(0x0B);
                 keyer::winkeyer_data(0x0);
                 is_tuning = false;
-                break;
+                continue;
             }
 
             auto wk_data = cw_daemon::to_winkeyer(message, speed);
