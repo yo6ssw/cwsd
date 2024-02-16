@@ -72,11 +72,25 @@ void client_worker(udp_server *server, timer *clock) {
         if (server->receive()) {
             auto speed = static_cast<unsigned char>(keyer::get_speed());
             auto message = server->last_message();
-            if (message.size() > 1 && message[0] == 27 && message[1] == '5') {
+
+            bool is_abort_send_cmd = message.size() > 1 && message[0] == 27 && message[1] == '4';
+            bool is_exit_cmd = message.size() > 1 && message[0] == 27 && message[1] == '5';
+
+            if (is_exit_cmd) {
                 std::cout << "- received exit command. shutting down" << std::endl;
                 is_running = false;
                 break;
             }
+
+            // if abort send cmd is sent but we are currently tuning
+            // stop the tuning
+            if (is_tuning && is_abort_send_cmd) {
+                keyer::winkeyer_data(0x0B);
+                keyer::winkeyer_data(0x0);
+                is_tuning = false;
+                break;
+            }
+
             auto wk_data = cw_daemon::to_winkeyer(message, speed);
             if (cw_daemon::is_tuning_command(wk_data)) {
                 is_tuning = true;
