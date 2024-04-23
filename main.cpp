@@ -30,7 +30,8 @@ struct key_interface : keyer::hw_interface {
         int m = 0;
         ioctl(fd, TIOCMGET, &m);
 
-        on_key_up();
+//        on_key_up(); // not ok to invoke virtual methods from constructor
+        ioctl(fd, TIOCMBIC, &key);
     }
 
     uint32_t current_ms() override {
