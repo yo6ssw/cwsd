@@ -87,6 +87,18 @@ std::vector<uint8_t> cw_daemon::to_winkeyer(std::vector<uint8_t> input, uint8_t 
                 result.push_back(seconds);
                 break;
             }
+            case 'u': {
+                unsigned char delta = std::stoi(&buffer[2]);
+                result.push_back(0x02);
+                result.push_back(initial_speed + delta);
+                break;
+            }
+            case 'd': {
+                unsigned char delta = std::stoi(&buffer[2]);
+                result.push_back(0x02);
+                result.push_back(initial_speed - delta);
+                break;
+            }
             default:
                 break;
         }
