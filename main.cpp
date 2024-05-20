@@ -1,157 +1,48 @@
+#include "easylogging++.h"
 #include <chrono>
 #include <iostream>
-#include "keyer/keyer.h"
-#include <bits/stdc++.h>
-#include <fcntl.h>
-#include <sys/ioctl.h>
-#include "udp_server.h"
-#include "cw_daemon.h"
-#include "timer.h"
-
-
-struct key_interface : keyer::hw_interface {
-    int fd;
-    int key;
-    int ptt;
-    const timer &clock;
-
-    key_interface(const char *device, timer &t)
-            : clock{t} {
-        std::cout << "- opening device " << device << std::endl;
-        fd = open(device, O_RDWR | O_NOCTTY | O_NONBLOCK);
-        if (fd < 0) {
-            std::cerr << "- failed to open " << device << std::endl;
-            exit(1);
-        }
-
-        key = TIOCM_DTR;
-        ptt = TIOCM_RTS;
-
-        int m = 0;
-        ioctl(fd, TIOCMGET, &m);
-
-//        on_key_up(); // not ok to invoke virtual methods from constructor
-        ioctl(fd, TIOCMBIC, &key);
-    }
-
-    uint32_t current_ms() override {
-        return clock.ellapsed_ms();
-    }
-
-    bool is_paddle_pressed(keyer::paddle_side side) override {
-        return false;
-    }
-
-    void on_key_down() override {
-        ioctl(fd, TIOCMBIS, &key);
-    }
-
-    void on_key_up() override {
-        ioctl(fd, TIOCMBIC, &key);
-    }
-};
+#include <sys/syslog.h>
+#include "cwsd.h"
 
 void usage() {
     std::cerr << "Usage: cwsd /path/to/device" << std::endl;
     exit(1);
 }
 
-std::atomic<bool> is_running = true;
-struct sigaction sigint_hndlr;
+cwsd_config get_config();
 
-void install_signal_handler();
-
-void signal_handler(int s) {
-    std::cerr << "- caught signal " << s << ". closing" << std::endl;
-    is_running = false;
-}
-
-void client_worker(udp_server *server, timer *clock) {
-    bool is_tuning = false;
-    uint32_t tune_end_time = 0;
-    while (is_running) {
-        if (server->receive()) {
-            auto speed = static_cast<unsigned char>(keyer::get_speed());
-            auto message = server->last_message();
-
-            bool is_abort_send_cmd = message.size() > 1 && message[0] == 27 && message[1] == '4';
-            bool is_exit_cmd = message.size() > 1 && message[0] == 27 && message[1] == '5';
-
-            if (is_exit_cmd) {
-                std::cout << "- received exit command. shutting down" << std::endl;
-                is_running = false;
-                break;
-            }
-
-            // if abort send cmd is sent but we are currently tuning
-            // stop the tuning
-            if (is_tuning && is_abort_send_cmd) {
-                keyer::winkeyer_data(0x0B);
-                keyer::winkeyer_data(0x0);
-                is_tuning = false;
-                continue;
-            }
-
-            auto wk_data = cw_daemon::to_winkeyer(message, speed);
-            if (cw_daemon::is_tuning_command(wk_data)) {
-                is_tuning = true;
-                // cwdaemon ^c command needs a parameter of tune seconds
-                // We are translating that into winkeyer immediate key on/off commands which
-                // do not take a time parameter, so we need to remove it from the stream after
-                // we use it to know when to stop the tuning.
-                tune_end_time = clock->ellapsed_ms() + 1000 * wk_data.back();
-                wk_data.pop_back();
-            }
-            for (auto &c: wk_data) {
-                keyer::winkeyer_data(c);
-            }
-        }
-        if (is_tuning && clock->ellapsed_ms() > tune_end_time) {
-            keyer::winkeyer_data(0x0B);
-            keyer::winkeyer_data(0x0);
-            is_tuning = false;
-        }
-    }
-}
+INITIALIZE_EASYLOGGINGPP
 
 int main(int argc, char **argv) {
+    ELPP_INITIALIZE_SYSLOG("cwsd", LOG_PID | LOG_CONS | LOG_PERROR, LOG_USER);
     if (argc < 2) {
         usage();
     }
 
     try {
-        std::cout << "- started with pid " << getpid() << std::endl;
-        install_signal_handler();
-
-        timer clock;
-        key_interface iface{argv[1], clock};
-        keyer::init(&iface);
-        keyer::set_speed(30);
-
-        struct timeval timeout{};
-        timeout.tv_sec = 0;
-        timeout.tv_usec = 10000;
-
-        udp_server server{6789, timeout};
-        std::thread t(client_worker, &server, &clock);
-
-        while (is_running) {
-            keyer::update();
-            std::this_thread::sleep_for(std::chrono::milliseconds(4));
-        }
-        t.join();
+        cwsd driver(get_config());
+        driver.run();
     } catch (std::exception &e) {
-        std::cerr << "Error: " << e.what();
+        SYSLOG(ERROR) << e.what();
         return 1;
     }
+    return 0;
 }
 
-void install_signal_handler() {
-    sigint_hndlr.sa_handler = signal_handler;
-    sigemptyset(&sigint_hndlr.sa_mask);
-    sigint_hndlr.sa_flags = 0;
-
-    sigaction(SIGINT, &sigint_hndlr, nullptr);
-    sigaction(SIGKILL, &sigint_hndlr, nullptr);
-    sigaction(SIGTERM, &sigint_hndlr, nullptr);
+cwsd_config get_config() {
+    cwsd_config cfg = {
+            .cwdaemon = {
+                    .enabled = true,
+                    .port = 6789
+            },
+            .rigctld = {
+                    .enabled = true,
+                    .port = 4532
+            },
+            .rig = {
+                    .port = "/dev/icom7300",
+                    .model = 3073
+            }
+    };
+    return cfg;
 }
