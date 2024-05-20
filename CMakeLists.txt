@@ -4,6 +4,7 @@ project(cwsd)
 set(CMAKE_CXX_STANDARD 17)
 
 include_directories("src")
+add_compile_definitions(ELPP_SYSLOG)
 add_executable(cwsd main.cpp
         src/keyer/keyer.cpp
         src/keyer/keyer.h
@@ -42,4 +43,16 @@ add_executable(cwsd main.cpp
         src/udp_server.h
         src/timer.cpp
         src/timer.h
+        src/rigctl_server.cpp
+        src/rigctl_server.h
+        src/easylogging++.cc
+        src/rigctld_server.cpp
+        src/rigctld_server.h
+        src/cwdaemon_server.cpp
+        src/cwdaemon_server.h
+        src/events.cpp
+        src/events.h
+        src/cwsd.cpp
+        src/cwsd.h
 )
+target_link_libraries(cwsd hamlib)
