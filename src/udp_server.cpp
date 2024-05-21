@@ -35,6 +35,21 @@ udp_server::udp_server(uint16_t port, timeval read_timeout) {
     LOG(INFO) << "cwdaemon listening on port " << port;
 }
 
+std::string msg_for_log(std::vector<uint8_t> message) {
+    std::stringstream ss;
+    for (auto i = 0; i < message.size() - 1; i++) {
+        auto &c = message[i];
+        if (std::isprint(c)) {
+            ss << c;
+        } else {
+            ss << "(0x" << std::setw(2) << std::setfill('0') << std::uppercase << std::hex << (int) c << ")"
+               << std::dec;
+        }
+    }
+
+    return ss.str();
+}
+
 bool udp_server::receive() {
     sockaddr_in client_addr;
     memset(&client_addr, 0, sizeof(client_addr));
@@ -58,18 +73,7 @@ bool udp_server::receive() {
 
         buffer[n] = 0;
         message = std::vector<uint8_t>(buffer, buffer + n + 1);
-        std::cout << "- client sent [";
-        for (auto i = 0; i < message.size() - 1; i++) {
-            auto &c = message[i];
-            if (std::isprint(c)) {
-                std::cout << c;
-            } else {
-                std::cout << "(0x" << std::setw(2) << std::setfill('0') << std::uppercase << std::hex << (int) c << ")"
-                          << std::dec;
-            }
-        }
-
-        std::cout << "]" << std::endl;
+        LOG(DEBUG) << "cwdaemon client sent [" << msg_for_log(message) << "]";
         return true;
     } else {
         return false;

@@ -23,7 +23,8 @@ int main(int argc, char **argv) {
 
     try {
         auto config = read_config("~/.config/cwsdrc");
-        configure_logging(to_logging_level(config.logging.level), config.logging.filename, std::to_string(config.logging.max_size));
+        configure_logging(to_logging_level(config.logging.level), config.logging.filename,
+                          std::to_string(config.logging.max_size));
         cwsd driver(config);
         driver.run();
     } catch (std::exception &e) {
@@ -71,9 +72,8 @@ bool daemonize() {
 
     /* Close all open file descriptors */
     int x;
-    for (x = sysconf(_SC_OPEN_MAX); x>=0; x--)
-    {
-        close (x);
+    for (x = sysconf(_SC_OPEN_MAX); x >= 0; x--) {
+        close(x);
     }
     return true;
 }
@@ -118,6 +118,7 @@ cwsd_config read_config(std::string path) {
 
     cfg.cwdaemon.enabled = root["cwdaemon"]["enabled"].get_value<bool>();
     cfg.cwdaemon.port = root["cwdaemon"]["port"].get_value<int>();
+    cfg.cwdaemon.initial_wpm = root["cwdaemon"]["initial_wpm"].get_value<int>();
 
     cfg.rigctld.enabled = root["rigctld"]["enabled"].get_value<bool>();
     cfg.rigctld.port = root["rigctld"]["port"].get_value<int>();
