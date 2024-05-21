@@ -1,0 +1,9 @@
+rig:
+  port: /dev/icom7300
+  model: 3073
+cwdaemon:
+  enabled: true
+  port: 6789
+rigctld:
+  enabled: true
+  port: 4532

@@ -1,5 +1,5 @@
 #include "cwsd.h"
-#include <easylogging++.h>
+#include "libs/easylogging++.h"
 
 cwsd::cwsd(cwsd_config cfg)
         : config(cfg) {
