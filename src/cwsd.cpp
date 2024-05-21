@@ -28,7 +28,7 @@ void cwsd::run() {
         if (config.cwdaemon.enabled) {
             cwdaemon->update();
         }
-        std::this_thread::sleep_for(std::chrono::milliseconds(4));
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
     }
     if (config.rigctld.enabled) {
         rigctld->stop();
@@ -50,6 +50,6 @@ void cwsd::initialize_signal_handler() {
 }
 
 void cwsd::signal_handler(int s) {
-    SYSLOG(INFO) << "caught signal " << s << ". closing" << std::endl;
+    LOG(INFO) << "caught signal " << s << ". closing";
     is_running = false;
 }

@@ -25,7 +25,7 @@ bool key_interface::open_port() {
     int m = 0;
     ioctl(fd, TIOCMGET, &m);
 
-//        on_key_up(); // not ok to invoke virtual methods from constructor
+//  on_key_up(); // not ok to invoke virtual methods from constructor
     ioctl(fd, TIOCMBIC, &key);
     return true;
 }
@@ -49,9 +49,9 @@ void key_interface::on_key_up() {
 void key_interface::update() {
     auto fd_valid = isatty(fd);
     if (fd_valid && !fd_was_valid) {
-        SYSLOG(INFO) << "cwdaemon connected to port " << device << std::endl;
+        LOG(INFO) << "cwdaemon connected to port " << device;
     } else if (!fd_valid && fd_was_valid) {
-        SYSLOG(INFO) << "cwdaemon disconnected from port " << device << std::endl;
+        LOG(INFO) << "cwdaemon disconnected from port " << device;
     }
     if (!fd_valid) {
         open_port();
@@ -73,7 +73,7 @@ void cwdaemon_server::client_worker(key_interface *iface, udp_server *server, ti
             bool is_exit_cmd = message.size() > 1 && message[0] == 27 && message[1] == '5';
 
             if (is_exit_cmd) {
-                std::cout << "- received exit command. shutting down" << std::endl;
+                LOG(INFO) << "cwdaemon received exit command. shutting down";
                 break;
             }
 
@@ -133,5 +133,5 @@ cwdaemon_server::cwdaemon_server(std::string device, uint16_t listen_port) {
 void cwdaemon_server::stop() {
     is_running = false;
     worker_thread.join();
-    SYSLOG(INFO) << "cwdaemon server shut down" << std::endl;
+    LOG(INFO) << "cwdaemon server shut down";
 }
