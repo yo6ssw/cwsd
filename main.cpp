@@ -1,18 +1,29 @@
 #include "libs/easylogging++.h"
 #include "cwsd.h"
 #include "libs/node.hpp"
+#include <fcntl.h>
 
 void usage();
 cwsd_config read_config(std::string path);
 void configure_logging(el::Level level, std::string filename, std::string max_file_size);
 
 el::Level to_logging_level(std::string level_as_str);
+bool daemonize();
+
 INITIALIZE_EASYLOGGINGPP
 
 int main(int argc, char **argv) {
+    // TODO: implement proper cli args handling with help and all
+    for (int i = 1; i < argc; i++) {
+        if (strcmp(argv[i], "-d") == 0) {
+            daemonize();
+            break;
+        }
+    }
+
     try {
         auto config = read_config("~/.config/cwsdrc");
-        configure_logging(to_logging_level(config.logging.level), config.logging.filename, config.logging.max_size);
+        configure_logging(to_logging_level(config.logging.level), config.logging.filename, std::to_string(config.logging.max_size));
         cwsd driver(config);
         driver.run();
     } catch (std::exception &e) {
@@ -20,6 +31,51 @@ int main(int argc, char **argv) {
         return 1;
     }
     return 0;
+}
+
+bool daemonize() {
+    pid_t pid;
+
+    /* Fork off the parent process */
+    pid = fork();
+
+    /* An error occurred */
+    if (pid < 0)
+        exit(EXIT_FAILURE);
+
+    /* Success: Let the parent terminate */
+    if (pid > 0)
+        exit(EXIT_SUCCESS);
+
+    /* On success: The child process becomes session leader */
+    if (setsid() < 0)
+        exit(EXIT_FAILURE);
+
+    /* Fork off for the second time*/
+    pid = fork();
+
+    /* An error occurred */
+    if (pid < 0)
+        exit(EXIT_FAILURE);
+
+    /* Success: Let the parent terminate */
+    if (pid > 0)
+        exit(EXIT_SUCCESS);
+
+    /* Set new file permissions */
+    umask(0);
+
+    /* Change the working directory to the root directory */
+    /* or another appropriated directory */
+    chdir("/");
+
+    /* Close all open file descriptors */
+    int x;
+    for (x = sysconf(_SC_OPEN_MAX); x>=0; x--)
+    {
+        close (x);
+    }
+    return true;
 }
 
 el::Level to_logging_level(std::string level_as_str) {
@@ -76,7 +132,7 @@ cwsd_config read_config(std::string path) {
         }
 
         if (log_node.contains("max_size")) {
-            cfg.logging.max_size = log_node["max_size"].get_value<std::string>();
+            cfg.logging.max_size = log_node["max_size"].get_value<uint32_t>();
         }
     }
 
