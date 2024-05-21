@@ -117,10 +117,15 @@ void cwdaemon_server::update() {
     iface->update();
 }
 
-cwdaemon_server::cwdaemon_server(std::string device, uint16_t listen_port) {
+cwdaemon_server::cwdaemon_server(std::string device, uint16_t listen_port, int initial_wpm) {
     iface = new key_interface(device, clock);
     keyer::init(iface);
-    keyer::set_speed(30);
+
+
+// Workaround for keyer::set_speed()
+// TODO: find out why set_speed() does not perform as intended here
+    keyer::winkeyer_data(0x02);
+    keyer::winkeyer_data(initial_wpm);
 
     struct timeval timeout{};
     timeout.tv_sec = 0;

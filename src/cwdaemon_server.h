@@ -17,7 +17,7 @@ struct key_interface;
 
 class cwdaemon_server {
 public:
-    explicit cwdaemon_server(std::string device, uint16_t listen_port);
+    explicit cwdaemon_server(std::string device, uint16_t listen_port, int initial_wpm);
     void set_event_bus(event_bus *bus);
     void update();
     void client_worker(key_interface *iface, udp_server *server, timer *clock);

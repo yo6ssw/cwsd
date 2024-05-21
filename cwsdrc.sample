@@ -4,6 +4,7 @@ rig:
 cwdaemon:
   enabled: true
   port: 6789
+  initial_wpm: 40
 rigctld:
   enabled: true
   port: 4532

@@ -11,6 +11,7 @@ struct cwsd_config {
     struct {
         bool enabled = false;
         int port;
+        int initial_wpm = 30;
     } cwdaemon;
     struct {
         bool enabled = false;
