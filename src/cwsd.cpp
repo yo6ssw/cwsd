@@ -4,11 +4,13 @@
 cwsd::cwsd(cwsd_config cfg)
         : config(cfg) {
     initialize_signal_handler();
-    if (cfg.cwdaemon.enabled) {
-        cwdaemon = new cwdaemon_server(cfg.rig.port, cfg.cwdaemon.port, cfg.cwdaemon.initial_wpm);
-    }
     if (cfg.rigctld.enabled) {
         rigctld = new rigctld_server(cfg.rig.port, cfg.rig.model, cfg.rigctld.port);
+        // TODO: fix this later
+        std::this_thread::sleep_for(std::chrono::milliseconds (500));
+    }
+    if (cfg.cwdaemon.enabled) {
+        cwdaemon = new cwdaemon_server(cfg.rig.port, cfg.cwdaemon.port, cfg.cwdaemon.initial_wpm);
     }
 }
 
