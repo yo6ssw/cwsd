@@ -10,4 +10,4 @@ rigctld:
 logging:
   level: debug
   filename: /tmp/cwsd.log
-  max_size: "200" # must be as string. bytes of max log file size
+  max_size: 1048576
