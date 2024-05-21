@@ -27,14 +27,14 @@ void rigctld_server::start_listener() {
         throw std::runtime_error("failed to create rigctld socket");
     }
 
-    LOG(INFO) << "setting rigctld listener to nonblocking";
+    LOG(DEBUG) << "setting rigctld listener to nonblocking";
     fcntl(server_fd, F_SETFL, O_NONBLOCK);
 
 //    if (setsockopt(server_fd, SOL_SOCKET, SO_RCVTIMEO, &read_timeout, sizeof(read_timeout)) < 0) {
 //        throw std::runtime_error("failed to set read timeout");
 //    }
 
-    LOG(INFO) << "setting rigctld listener to reuse addr";
+    LOG(DEBUG) << "setting rigctld listener to reuse addr";
     int reuseOption = 1;
     setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, &reuseOption, sizeof(reuseOption));
 
