@@ -1,10 +1,5 @@
-//
-// Created by benny on 14/05/24.
-//
-
 #ifndef CWSD_RIGCTLD_SERVER_H
 #define CWSD_RIGCTLD_SERVER_H
-
 
 #include <string>
 #include <cstdint>
@@ -13,12 +8,12 @@
 #include <atomic>
 #include <thread>
 #include <memory>
+#include <sys/poll.h>
 
 struct rigctld_client {
     int fd;
     std::string read_buffer;
     std::string write_buffer;
-    std::shared_ptr<std::thread> worker;
     bool is_running{true};
 };
 
@@ -26,6 +21,7 @@ class rigctld_server {
 public:
 
     rigctld_server(std::string device, int model, uint16_t listen_port);
+    ~rigctld_server();
 
     void update();
     void work();
@@ -34,7 +30,6 @@ public:
     void stop();
 private:
 
-    void client_handler(int client_fd);
     bool open_rig();
 
     void interpret_command(std::string &command, int client_fd);
@@ -56,7 +51,16 @@ private:
     std::map<int, rigctld_client> clients;
     std::atomic<bool> rig_disconnected{true};
     std::atomic<bool> is_running;
+    void update_poll_descriptors();
+    int accept_client();
+    bool read_from_client(rigctld_client &client);
+    bool write_from_client(rigctld_client &client);
+    void close_client(rigctld_client &client);
+    bool poll_declares_error(short events);
+
+    pollfd* pfds;
+    size_t pfd_nr;
 };
 
 
-#endif //CWSD_RIGCTLD_SERVER_H
+#endif

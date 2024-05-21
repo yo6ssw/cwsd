@@ -6,6 +6,7 @@
 #include "easylogging++.h"
 #include "string_util.h"
 #include <poll.h>
+#include <arpa/inet.h>
 
 void rigctld_server::update() {
 }
@@ -16,11 +17,8 @@ rigctld_server::rigctld_server(std::string dev, int model, uint16_t port)
         : device(dev), rig_model(model), listen_port(port) {
 
     start_listener();
-
-
     rig_set_debug(RIG_DEBUG_ERR);
     rig_set_debug_callback(debug_callback, this);
-
     worker = std::thread(&rigctld_server::work, this);
 }
 
@@ -59,29 +57,21 @@ void rigctld_server::start_listener() {
 
 
 void rigctld_server::work() {
-    sockaddr_in new_sock_addr{};
-    socklen_t new_sock_addr_size = sizeof(new_sock_addr);
-
-    struct pollfd pfds[1];
-    pfds[0].fd = server_fd;
-    pfds[0].events = POLLIN;
+    update_poll_descriptors();
 
     is_running = true;
     while (is_running) {
         if (rig_disconnected) {
             if (rig != nullptr) {
-                // close clients
-                for (auto& c : clients) {
-                    c.second.is_running = false;
-                    c.second.worker->join();
+                for (auto &c: clients) {
+                    this->close_client(c.second);
                 }
                 clients.clear();
+                update_poll_descriptors();
 
                 // Note: close and clean-up *must* be issued from the very same thread that issued init() and open()!
                 SYSLOG(INFO) << "rigctld device disconnected (" << device << ")" << std::endl;
-                SYSLOG(INFO) << "closing rig" << std::endl;
                 rig_close(rig);
-                SYSLOG(INFO) << "cleaning up rig" << std::endl;
                 rig_cleanup(rig);
                 rig = nullptr;
             }
@@ -90,51 +80,47 @@ void rigctld_server::work() {
                 SYSLOG(INFO) << "rigctld device connected (" << device << ")" << std::endl;
                 rig_disconnected.store(false);
             }
-        } else {
-            auto num_events = poll(pfds, 1, 100); // timeout in ms
-            if (num_events > 0 && pfds[0].revents & POLLIN) {
-                int client_fd = accept(server_fd, (sockaddr *) &new_sock_addr, &new_sock_addr_size);
-                if (client_fd < 0) {
-                    SYSLOG(ERROR) << "rigctld accept() on rigctl listener returned " << client_fd << std::endl;
-                } else {
-                    SYSLOG(INFO) << "rigctld client connected from " << new_sock_addr.sin_addr.s_addr << std::endl;
-                    clients.insert({client_fd, rigctld_client{
-                            .fd = client_fd,
-                            .read_buffer = "",
-                            .write_buffer = "",
-                            .worker = std::make_shared<std::thread>(&rigctld_server::client_handler, this, client_fd),
-                            .is_running = true
-                    }});
+        }
+        auto num_events = poll(pfds, pfd_nr, 10); // timeout in ms
+        if (num_events > 0) {
+            int fd_to_add = -1;
+            std::vector<int> fds_to_remove;
 
+            for (auto i = 0; i < pfd_nr; i++) {
+                if (pfds[i].revents & POLLIN) {
+                    if (i == 0) {
+                        fd_to_add = this->accept_client();
+                    } else {
+                        if (!this->read_from_client(clients[pfds[i].fd])) {
+                            fds_to_remove.push_back(pfds[i].fd);
+                        }
+                    }
                 }
+
+                if (pfds[i].revents & POLLOUT) {
+                    if (!this->write_from_client(clients[pfds[i].fd])) {
+                        fds_to_remove.push_back(pfds[i].fd);
+                    }
+                }
+
+                if (poll_declares_error(pfds[i].revents)) {
+                    SYSLOG(ERROR) << "[c:" << pfds[i].fd << "] detected error." << std::endl;
+                    fds_to_remove.push_back(pfds[i].fd);
+                }
+            }
+
+            for (auto &r: fds_to_remove) {
+                this->close_client(clients[r]);
+                clients.erase(r);
+            }
+
+            if (fd_to_add > 0 || fds_to_remove.size() > 0) {
+                update_poll_descriptors();
             }
         }
     }
 }
 
-
-void rigctld_server::client_handler(int client_fd) {
-    char msg[1500];
-    while (clients[client_fd].is_running && !rig_disconnected) {
-        memset(&msg, 0, sizeof(msg));
-        auto bytes_read = recv(client_fd, (char *) &msg, sizeof(msg), 0);
-        if (bytes_read < 0) {
-            SYSLOG(WARNING) << "[c:" << client_fd << "] recv() returned " << bytes_read << std::endl;
-            break;
-        } else if (bytes_read > 0) {
-            msg[bytes_read] = '\0';
-            auto command = std::string(msg, strlen(msg));
-            interpret_command(command, client_fd);
-        } else {
-            // recv() returning 0 when socket is blocking means the client disconnected
-            SYSLOG(WARNING) << "[c:" << client_fd << "] disconnected" << std::endl;
-            break;
-        }
-    }
-    SYSLOG(INFO) << "rigctld closing client " << client_fd << std::endl;
-    shutdown(client_fd, SHUT_RDWR);
-    close(client_fd);
-}
 
 static int debug_callback(enum rig_debug_level_e level, rig_ptr_t user_data, const char *message, va_list args) {
     auto disconnected = string_contains(message, "read failed");
@@ -150,8 +136,6 @@ bool rigctld_server::open_rig() {
     if (rig == nullptr) {
         SYSLOG(DEBUG) << "rig_init returned null" << std::endl;
         throw std::runtime_error("unknown rig num");
-    } else {
-//        SYSLOG(DEBUG) << "rig_init succeeded" << std::endl;
     }
     strncpy(rig->state.rigport.pathname, device.c_str(), FILPATHLEN - 1);
 
@@ -161,10 +145,7 @@ bool rigctld_server::open_rig() {
         rig_cleanup(rig);
         rig = nullptr;
         return false;
-    } else {
-//        SYSLOG(DEBUG) << "rig_open succeeded" << std::endl;
     }
-
 
     result = rig_set_conf(rig, rig_token_lookup(rig, "rts_state"), "OFF");
     if (result != RIG_OK) {
@@ -187,10 +168,6 @@ void rigctld_server::on_rig_disconnect() {
 void rigctld_server::stop() {
     is_running = false;
     worker.join();
-    for (auto &c: clients) {
-        c.second.is_running = false;
-        c.second.worker->join();
-    }
     SYSLOG(INFO) << "rigctld server shut down" << std::endl;
 }
 
@@ -266,21 +243,9 @@ std::string rigctld_server::to_client(powerstat_t status) {
 }
 
 void rigctld_server::send_response_to_client(const std::string &response, int fd) {
-    std::stringstream ss;
-    ss << response << '\n';
-    auto full_response = ss.str();
-
-    SYSLOG(DEBUG) << "[c:" << fd << "] << " << trim(full_response);
-
-    size_t written_bytes = 0;
-    size_t to_write = full_response.size();
-    while (to_write > 0) {
-        auto wb = write(fd, &full_response.c_str()[written_bytes], to_write);
-        if (wb > 0) {
-            written_bytes += wb;
-            to_write -= wb;
-        }
-    }
+    SYSLOG(DEBUG) << "[c:" << fd << "] << " << response;
+    clients[fd].write_buffer.append(response);
+    clients[fd].write_buffer.push_back('\n');
 }
 
 std::string rigctld_server::vfo_to_string(vfo_t vfo) {
@@ -365,4 +330,104 @@ const char *rigctld_server::split_to_string(split_t split) {
         return "1";
     else
         return "0";
+}
+
+void rigctld_server::update_poll_descriptors() {
+    delete[] pfds;
+
+    pfds = new pollfd[clients.size() + 1];
+    pfds[0].fd = server_fd;
+    pfds[0].events = POLLIN;
+
+    int index = 1;
+    for (auto &c: clients) {
+        pfds[index].fd = c.second.fd;
+        pfds[index].events = POLLIN | POLLOUT;
+        index++;
+    }
+
+    pfd_nr = clients.size() + 1;
+}
+
+int rigctld_server::accept_client() {
+    sockaddr_in sa{};
+    socklen_t sa_size = sizeof(sa);
+
+    int client_fd = accept(server_fd, (sockaddr *) &sa, &sa_size);
+    if (client_fd < 0) {
+        SYSLOG(ERROR) << "rigctld accept() on rigctl listener returned " << client_fd << std::endl;
+    } else {
+        char str[INET_ADDRSTRLEN];
+        inet_ntop(AF_INET, &(sa.sin_addr), str, INET_ADDRSTRLEN);
+
+        SYSLOG(INFO) << "[c:" << client_fd << "] rigctld client connected from " << str << ":" << sa.sin_port
+                     << std::endl;
+        clients.insert({client_fd, rigctld_client{
+                .fd = client_fd,
+                .read_buffer = "",
+                .write_buffer = "",
+                .is_running = true
+        }});
+    }
+
+    return client_fd;
+}
+
+bool rigctld_server::read_from_client(rigctld_client &client) {
+    char msg[128];
+    memset(&msg, 0, sizeof(msg));
+
+    auto bytes_read = recv(client.fd, (char *) &msg, sizeof(msg) - 1, 0);
+    if (bytes_read < 0) {
+        SYSLOG(WARNING) << "[c:" << client.fd << "] recv() returned " << bytes_read << std::endl;
+        return false;
+    }
+
+    if (bytes_read > 0) {
+        msg[bytes_read] = '\0';
+        client.read_buffer.append(msg);
+    }
+
+    // do not interpret client requests while rig is disconnected
+    if (!rig_disconnected) {
+        size_t pos;
+        while ((pos = client.read_buffer.find('\n')) != std::string::npos) {
+            auto cmd = client.read_buffer.substr(0, pos);
+            interpret_command(cmd, client.fd);
+            client.read_buffer.erase(0, cmd.size() + 1);
+        }
+    }
+
+    return true;
+
+    // recv() returning 0 when socket is blocking means the client disconnected
+    SYSLOG(WARNING) << "[c:" << client.fd << "] disconnected" << std::endl;
+    return false;
+}
+
+bool rigctld_server::write_from_client(rigctld_client &client) {
+    if (client.write_buffer.empty()) return true;
+
+    auto written_bytes = write(client.fd, client.write_buffer.c_str(), client.write_buffer.size());
+    if (written_bytes < 0) {
+        SYSLOG(ERROR) << "[c:" << client.fd << "] error writing" << std::endl;
+        return false;
+    }
+
+    client.write_buffer.erase(0, written_bytes);
+    return true;
+}
+
+void rigctld_server::close_client(rigctld_client &client) {
+    SYSLOG(INFO) << "rigctld closing client " << client.fd << std::endl;
+    shutdown(client.fd, SHUT_RDWR);
+    close(client.fd);
+}
+
+bool rigctld_server::poll_declares_error(short events) {
+    return events & (POLLERR | POLLHUP | POLLNVAL);
+}
+
+rigctld_server::~rigctld_server() {
+    delete[] pfds;
 }
