@@ -20,6 +20,11 @@ struct cwsd_config {
         std::string port;
         int model;
     } rig;
+    struct {
+        std::string filename = "cwsd.log";
+        std::string level = "info";
+        std::string max_size = "1048576"; // max size in bytes for logrotate. default 1MB
+    } logging;
 };
 
 

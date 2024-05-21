@@ -10,6 +10,7 @@
 #include <iomanip>
 #include "udp_server.h"
 #include <unistd.h>
+#include <libs/easylogging++.h>
 
 udp_server::udp_server(uint16_t port, timeval read_timeout) {
     if ((sockfd = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
@@ -31,7 +32,7 @@ udp_server::udp_server(uint16_t port, timeval read_timeout) {
         throw std::runtime_error("bind failed");
     }
 
-    std::cout << "- listening on port " << port << std::endl;
+    LOG(INFO) << "cwdaemon listening on port " << port;
 }
 
 bool udp_server::receive() {
@@ -40,18 +41,18 @@ bool udp_server::receive() {
     socklen_t client_addr_len = sizeof(client_addr);
 
     auto n = recvfrom(sockfd,
-                            buffer,
-                            1024,
-                            0,
-                            reinterpret_cast<struct sockaddr *>(&client_addr),
-                            &client_addr_len);
+                      buffer,
+                      1024,
+                      0,
+                      reinterpret_cast<struct sockaddr *>(&client_addr),
+                      &client_addr_len);
     if (n < 0 && errno != EAGAIN) {
 //        throw std::runtime_error("recvfrom failed with errno " + errno);
         return false;
     }
 
     if (n > 0) {
-        while (n > 1 && (buffer[n-1] == '\n' || buffer[n-1] == '\r' || buffer[n-1] == ' ')) {
+        while (n > 1 && (buffer[n - 1] == '\n' || buffer[n - 1] == '\r' || buffer[n - 1] == ' ')) {
             n--;
         }
 
@@ -63,7 +64,8 @@ bool udp_server::receive() {
             if (std::isprint(c)) {
                 std::cout << c;
             } else {
-                std::cout << "(0x" << std::setw(2) << std::setfill('0') << std::uppercase << std::hex << (int)c << ")" << std::dec;
+                std::cout << "(0x" << std::setw(2) << std::setfill('0') << std::uppercase << std::hex << (int) c << ")"
+                          << std::dec;
             }
         }
 
