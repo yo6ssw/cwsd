@@ -43,8 +43,6 @@ add_executable(cwsd main.cpp
         src/udp_server.h
         src/timer.cpp
         src/timer.h
-        src/rigctl_server.cpp
-        src/rigctl_server.h
         src/easylogging++.cc
         src/rigctld_server.cpp
         src/rigctld_server.h
