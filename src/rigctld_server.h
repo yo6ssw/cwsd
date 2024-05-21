@@ -58,7 +58,7 @@ private:
     void close_client(rigctld_client &client);
     bool poll_declares_error(short events);
 
-    pollfd* pfds;
+    pollfd* pfds = nullptr;
     size_t pfd_nr;
     void update_poll_flags();
 };

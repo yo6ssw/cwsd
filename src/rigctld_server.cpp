@@ -3,7 +3,7 @@
 #include "rigctld_server.h"
 #include <fcntl.h>
 #include <netinet/in.h>
-#include "easylogging++.h"
+#include "libs/easylogging++.h"
 #include "string_util.h"
 #include <poll.h>
 #include <arpa/inet.h>
@@ -336,7 +336,10 @@ const char *rigctld_server::split_to_string(split_t split) {
 }
 
 void rigctld_server::update_poll_descriptors() {
-    delete[] pfds;
+    if (nullptr != pfds) {
+        delete[] pfds;
+    }
+
 
     pfds = new pollfd[clients.size() + 1];
     pfds[0].fd = server_fd;
