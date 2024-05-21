@@ -60,7 +60,7 @@ private:
 
     pollfd* pfds;
     size_t pfd_nr;
+    void update_poll_flags();
 };
-
 
 #endif
