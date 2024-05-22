@@ -142,13 +142,7 @@ bool rigctld_server::open_rig() {
     }
     strncpy(rig->state.rigport.pathname, device.c_str(), FILPATHLEN - 1);
 
-    int result = rig_open(rig);
-    if (result != RIG_OK) {
-//        LOG(DEBUG) << "rig_open returns " << result << std::endl;
-        rig_cleanup(rig);
-        rig = nullptr;
-        return false;
-    }
+    int result;
 
     result = rig_set_conf(rig, rig_token_lookup(rig, "rts_state"), "OFF");
     if (result != RIG_OK) {
@@ -158,6 +152,15 @@ bool rigctld_server::open_rig() {
     if (result != RIG_OK) {
         throw std::runtime_error("rigctld failed to set dtr_state");
     }
+
+    result = rig_open(rig);
+    if (result != RIG_OK) {
+//        LOG(DEBUG) << "rig_open returns " << result << std::endl;
+        rig_cleanup(rig);
+        rig = nullptr;
+        return false;
+    }
+
     return true;
 }
 
