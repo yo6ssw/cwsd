@@ -1,7 +1,6 @@
 #include "libs/easylogging++.h"
 #include "cwsd.h"
 #include "libs/node.hpp"
-#include <fcntl.h>
 
 void usage();
 cwsd_config read_config(std::string path);
@@ -37,40 +36,33 @@ int main(int argc, char **argv) {
 bool daemonize() {
     pid_t pid;
 
-    /* Fork off the parent process */
+    // fork off the parent process
     pid = fork();
-
-    /* An error occurred */
     if (pid < 0)
         exit(EXIT_FAILURE);
 
-    /* Success: Let the parent terminate */
+    // success: ;et the parent terminate
     if (pid > 0)
         exit(EXIT_SUCCESS);
 
-    /* On success: The child process becomes session leader */
+    // on success: the child process becomes session leader
     if (setsid() < 0)
         exit(EXIT_FAILURE);
 
-    /* Fork off for the second time*/
+    // fork off for the second time
     pid = fork();
-
-    /* An error occurred */
     if (pid < 0)
         exit(EXIT_FAILURE);
 
-    /* Success: Let the parent terminate */
+    // success: Let the parent terminate
     if (pid > 0)
         exit(EXIT_SUCCESS);
 
-    /* Set new file permissions */
+    // set new file permissions
     umask(0);
-
-    /* Change the working directory to the root directory */
-    /* or another appropriated directory */
     chdir("/");
 
-    /* Close all open file descriptors */
+    // close all open file descriptors
     int x;
     for (x = sysconf(_SC_OPEN_MAX); x >= 0; x--) {
         close(x);
