@@ -8,7 +8,7 @@ cwsd_config read_config(std::string path);
 void configure_logging(el::Level level, std::string filename, std::string max_file_size);
 
 el::Level to_logging_level(std::string level_as_str);
-bool daemonize();
+void daemonize();
 
 INITIALIZE_EASYLOGGINGPP
 
@@ -17,7 +17,15 @@ int main(int argc, char **argv) {
     for (int i = 1; i < argc; i++) {
         if (strcmp(argv[i], "-d") == 0) {
             daemonize();
-            break;
+        }
+        if (strcmp(argv[i], "--version") == 0) {
+            std::cout << "cwsd " <<
+                      cwsdver::version_string()
+                      << " ("
+                      << cwsdver::version_shorthash()
+                      << (cwsdver::version_isdirty() ? "-dirty" : "")
+                      << ")" << std::endl;
+            exit(EXIT_SUCCESS);
         }
     }
 
@@ -34,11 +42,9 @@ int main(int argc, char **argv) {
     return 0;
 }
 
-bool daemonize() {
-    pid_t pid;
-
+void daemonize() {
     // fork off the parent process
-    pid = fork();
+    auto pid = fork();
     if (pid < 0)
         exit(EXIT_FAILURE);
 
@@ -64,11 +70,9 @@ bool daemonize() {
     chdir("/");
 
     // close all open file descriptors
-    int x;
-    for (x = sysconf(_SC_OPEN_MAX); x >= 0; x--) {
+    for (int x = sysconf(_SC_OPEN_MAX); x >= 0; x--) {
         close(x);
     }
-    return true;
 }
 
 el::Level to_logging_level(std::string level_as_str) {
@@ -134,8 +138,6 @@ cwsd_config read_config(std::string path) {
 }
 
 void pre_rollout_callback(const char *full_path, std::size_t s) {
-    const int how_many_logs = 10;
-
     std::string newer = std::string(full_path) + ".?";
     std::string older = std::string(full_path) + ".?";
     auto digit_pos = newer.size() - 1;
