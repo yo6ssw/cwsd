@@ -6,6 +6,7 @@
 void usage();
 cwsd_config read_config(std::string path);
 void configure_logging(el::Level level, std::string filename, std::string max_file_size);
+static std::string cwsd_version_string();
 
 el::Level to_logging_level(std::string level_as_str);
 void daemonize();
@@ -19,12 +20,7 @@ int main(int argc, char **argv) {
             daemonize();
         }
         if (strcmp(argv[i], "--version") == 0) {
-            std::cout << "cwsd " <<
-                      cwsdver::version_string()
-                      << " ("
-                      << cwsdver::version_shorthash()
-                      << (cwsdver::version_isdirty() ? "-dirty" : "")
-                      << ")" << std::endl;
+            std::cout << "cwsd v" << cwsd_version_string() << std::endl;
             exit(EXIT_SUCCESS);
         }
     }
@@ -151,6 +147,18 @@ void pre_rollout_callback(const char *full_path, std::size_t s) {
     rename(full_path, older.c_str());
 }
 
+std::string cwsd_version_string() {
+    std::stringstream ss;
+    ss << cwsdver::version_string()
+       << (cwsdver::version_distance() > 0 ? std::to_string(cwsdver::version_distance()) : "")
+       << " ("
+       << cwsdver::version_shorthash()
+       << (cwsdver::version_isdirty() ? "-dirty" : "")
+       << ")";
+    return ss.str();
+}
+
+
 void configure_logging(el::Level level, std::string filename, std::string max_file_size) {
     el::Loggers::addFlag(el::LoggingFlag::HierarchicalLogging);
     el::Loggers::addFlag(el::LoggingFlag::StrictLogFileSizeCheck);
@@ -166,9 +174,5 @@ void configure_logging(el::Level level, std::string filename, std::string max_fi
     el::Helpers::installPreRollOutCallback(pre_rollout_callback);
 
     LOG(INFO) << "--------------------------------------------------------------------------------------------";
-    LOG(INFO) << "starting cwsd v" << cwsdver::version_string()
-              << " ("
-              << cwsdver::version_shorthash()
-              << (cwsdver::version_isdirty() ? "-dirty" : "")
-              << ")" << std::endl;
+    LOG(INFO) << "starting cwsd v" << cwsd_version_string() << std::endl;
 }
