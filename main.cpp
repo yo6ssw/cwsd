@@ -1,6 +1,7 @@
 #include "libs/easylogging++.h"
 #include "cwsd.h"
 #include "libs/node.hpp"
+#include "cwsdver-GitVersion.h"
 
 void usage();
 cwsd_config read_config(std::string path);
@@ -163,4 +164,9 @@ void configure_logging(el::Level level, std::string filename, std::string max_fi
     el::Helpers::installPreRollOutCallback(pre_rollout_callback);
 
     LOG(INFO) << "--------------------------------------------------------------------------------------------";
+    LOG(INFO) << "starting cwsd v" << cwsdver::version_string()
+              << " ("
+              << cwsdver::version_shorthash()
+              << (cwsdver::version_isdirty() ? "-dirty" : "")
+              << ")" << std::endl;
 }
