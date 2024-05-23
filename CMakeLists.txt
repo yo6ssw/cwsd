@@ -59,3 +59,5 @@ add_executable(cwsd main.cpp
 )
 target_link_libraries(cwsd hamlib)
 add_version_info(TARGET cwsd PREFIX cwsdver)
+
+install(TARGETS cwsd DESTINATION /usr/local/bin)
