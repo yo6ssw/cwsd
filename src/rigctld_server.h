@@ -40,6 +40,7 @@ private:
     static const char *mode_to_string(rmode_t mode);
     static rmode_t mode_from_string(const char *name);
     static const char *split_to_string(split_t split);
+    std::string dump_state();
 
     RIG *rig = nullptr;
     rig_model_t rig_model;
