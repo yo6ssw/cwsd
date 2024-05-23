@@ -390,15 +390,18 @@ bool rigctld_server::read_from_client(rigctld_client &client) {
     char msg[128];
 
     auto bytes_read = recv(client.fd, (char *) &msg, sizeof(msg) - 1, 0);
-    if (bytes_read <= 0) {
-        LOG(WARNING) << "[c:" << client.fd << "] recv() returned " << bytes_read;
+    if (bytes_read < 0) {
+        LOG(WARNING) << "[c:" << client.fd << "] recv() error (errno=" << errno << ")";
         return false;
     }
 
-    if (bytes_read > 0) {
-        msg[bytes_read] = '\0';
-        client.read_buffer.append(msg);
+    if (bytes_read == 0) {
+        LOG(INFO) << "[c:" << client.fd << "] EOF detected";
+        return false;
     }
+
+    msg[bytes_read] = '\0';
+    client.read_buffer.append(msg);
 
     // do not interpret client requests while rig is disconnected
     if (!rig_disconnected) {
