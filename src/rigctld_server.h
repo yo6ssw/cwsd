@@ -32,7 +32,7 @@ private:
 
     bool open_rig();
 
-    void interpret_command(std::string &command, int client_fd);
+    bool interpret_command(std::string &command, int client_fd);
     static std::string to_client(powerstat_t status);
     void send_response_to_client(const std::string &response, int fd);
     static std::string vfo_to_string(vfo_t vfo);
