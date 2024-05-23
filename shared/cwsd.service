@@ -1,0 +1,16 @@
+[Unit]
+Description=CW sender daemon
+After=syslog.target network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/cwsd
+ExecReload=/bin/kill -HUP $MAINPID
+RestartSec=60
+Restart=always
+User=benny
+Group=users
+
+[Install]
+WantedBy=multi-user.target
+

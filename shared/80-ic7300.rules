@@ -1,0 +1,10 @@
+ENV{MAJOR}!="?*", GOTO="ic7300_rules_end"
+SUBSYSTEMS=="usb-serial", GOTO="ic7300_usb_rules"
+GOTO="ic7300_rules_end"
+
+LABEL="ic7300_usb_rules"
+
+# ICOM IC-7300
+ENV{ID_SERIAL_SHORT} == "IC-7300_06002255", SYMLINK+="icom7300", MODE="660", GROUP="dialout"
+
+LABEL="ic7300_rules_end"
