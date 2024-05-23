@@ -29,16 +29,16 @@ void trim(std::string &str, const std::string chars) {
 }
 
 std::string trim(const std::string str) {
-        auto result = str;
-        trim(result, "\t\n\v\f\r ");
-        return result;
+    auto result = str;
+    trim(result, "\t\n\v\f\r ");
+    return result;
 }
 
 bool starts_with(std::string haystack, std::string needle) {
     return (haystack.rfind(needle, 0) == 0);
 }
 
-void replace_all(std::string& str, const std::string& from, const std::string& to) {
+void replace_all(std::string &str, const std::string &from, const std::string &to) {
     if (from.empty())
         return;
     size_t start_pos = 0;
@@ -59,9 +59,46 @@ std::vector<std::string> split_string(const std::string &in, std::string delimit
     return result;
 }
 
-bool string_contains(const char* haystack, const char* needle) {
+bool string_contains(const char *haystack, const char *needle) {
     return strstr(haystack, needle) != nullptr;
 }
 
+
+// https://codereview.stackexchange.com/questions/187183/create-a-c-string-using-printf-style-formatting
+std::string format(const char *fmt, ...) {
+    char buf[256];
+
+    va_list args;
+    va_start(args, fmt);
+    const auto r = std::vsnprintf(buf, sizeof buf, fmt, args);
+    va_end(args);
+
+    if (r < 0)
+        // conversion failed
+        return {};
+
+    const size_t len = r;
+    if (len < sizeof buf)
+        // we fit in the buffer
+        return {buf, len};
+
+#if __cplusplus >= 201703L
+    // C++17: Create a string and write to its underlying array
+    std::string s(len, '\0');
+    va_start(args, fmt);
+    std::vsnprintf(s.data(), len + 1, fmt, args);
+    va_end(args);
+
+    return s;
+#else
+    // C++11 or C++14: We need to allocate scratch memory
+    auto vbuf = std::unique_ptr<char[]>(new char[len+1]);
+    va_start(args, fmt);
+    std::vsnprintf(vbuf.get(), len+1, fmt, args);
+    va_end(args);
+
+    return { vbuf.get(), len };
+#endif
+}
 
 #endif

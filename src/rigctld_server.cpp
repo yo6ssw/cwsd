@@ -7,6 +7,7 @@
 #include "string_util.h"
 #include <poll.h>
 #include <arpa/inet.h>
+#include <hamlib/rig.h>
 
 void rigctld_server::update() {
 }
@@ -194,10 +195,7 @@ bool rigctld_server::interpret_command(std::string &command, int client_fd) {
         rig_get_lock_mode(rig, &lock);
         send_response_to_client(std::to_string(lock), client_fd);
     } else if (cmd == "\\dump_state") {
-        // TODO: don't hardcode this
-        send_response_to_client(
-                "1\n3073\n0\n30000.000000 74800000.000000 0x401dbf -1 -1 0x10000003 0x0\n0 0 0 0 0 0 0\n1810000.000000 2000000.000000 0x1be 2000 100000 0x10000003 0x1\n3500000.000000 3800000.000000 0x1be 2000 100000 0x10000003 0x1\n7000000.000000 7200000.000000 0x1be 2000 100000 0x10000003 0x1\n10100000.000000 10150000.000000 0x1be 2000 100000 0x10000003 0x1\n14000000.000000 14350000.000000 0x1be 2000 100000 0x10000003 0x1\n18068000.000000 18168000.000000 0x1be 2000 100000 0x10000003 0x1\n21000000.000000 21450000.000000 0x1be 2000 100000 0x10000003 0x1\n24890000.000000 24990000.000000 0x1be 2000 100000 0x10000003 0x1\n28000000.000000 29700000.000000 0x1be 2000 100000 0x10000003 0x1\n5351500.000000 5366500.000000 0x1be 2000 100000 0x10000003 0x1\n50000000.000000 54000000.000000 0x1be 2000 100000 0x10000003 0x1\n70000000.000000 70500000.000000 0x1be 2000 50000 0x10000003 0x1\n1810000.000000 2000000.000000 0x400001 1000 25000 0x10000003 0x1\n3500000.000000 3800000.000000 0x400001 1000 25000 0x10000003 0x1\n7000000.000000 7200000.000000 0x400001 1000 25000 0x10000003 0x1\n10100000.000000 10150000.000000 0x400001 1000 25000 0x10000003 0x1\n14000000.000000 14350000.000000 0x400001 1000 25000 0x10000003 0x1\n18068000.000000 18168000.000000 0x400001 1000 25000 0x10000003 0x1\n21000000.000000 21450000.000000 0x400001 1000 25000 0x10000003 0x1\n24890000.000000 24990000.000000 0x400001 1000 25000 0x10000003 0x1\n28000000.000000 29700000.000000 0x400001 1000 25000 0x10000003 0x1\n5351500.000000 5366500.000000 0x400001 1000 25000 0x10000003 0x1\n50000000.000000 54000000.000000 0x400001 1000 25000 0x10000003 0x1\n70000000.000000 70500000.000000 0x400001 1000 12500 0x10000003 0x1\n0 0 0 0 0 0 0\n0x401dbf 1\n0x401dbf 1000\n0x401dbf 5000\n0x401dbf 9000\n0x401dbf 10000\n0x401dbf 12500\n0x401dbf 20000\n0x401dbf 25000\n0 0\n0xc0c 2400\n0xc0c 1800\n0xc0c 3000\n0x192 500\n0x192 250\n0x82 1200\n0x110 2400\n0x400001 6000\n0x400001 3000\n0x400001 9000\n0x1020 10000\n0x1020 7000\n0x1020 15000\n0 0\n9999\n9999\n0\n0\n1 2 \n20 \n0xfc00c90133fe\n0xfc00c90133fe\n0xc7fff74677f3f\n0xc7f7000677f3f\n0x35\n0x35\nvfo_ops=0x81f\nptt_type=0x1\ntargetable_vfo=0x3\nhas_set_vfo=1\nhas_get_vfo=0\nhas_set_freq=1\nhas_get_freq=1\nhas_set_conf=1\nhas_get_conf=1\nhas_power2mW=1\nhas_mW2power=1\ntimeout=1000\nrig_model=3073\nrigctld_version=Hamlib 4.5.5 Apr 05 11:43:08Z 2023 SHA=6eecd3\nagc_levels=0=OFF 1=FAST 2=MEDIUM 3=SLOW\nctcss_list= 60.0 67.0 69.3 71.9 74.4 77.0 79.7 82.5 85.4 88.5 91.5 94.8 97.4 100.0 103.5 107.2 110.9 114.8 118.8 120.0 123.0 127.3 131.8 136.5 141.3 146.2 151.4 156.7 159.8 162.2 165.5 167.9 171.3 173.8 177.3 179.9 183.5 186.2 189.9 192.8 196.6 199.5 203.5 206.5 210.7 218.1 225.7 229.1 233.6 241.8 250.3 254.1\ndone",
-                client_fd);
+        send_response_to_client(dump_state(), client_fd);
     } else if (cmd == "f") {
         freq_t freq;
         rig_get_freq(rig, RIG_VFO_CURR, &freq);
@@ -459,4 +457,216 @@ void rigctld_server::update_poll_flags() {
         }
         index++;
     }
+}
+
+//int rig_sprintf_agc_levels(RIG *rig, char *str, int lenstr) {
+//    auto priv_caps = (const struct icom_priv_caps *) rig->caps->priv;
+//
+//    int len = 0;
+//    int i;
+//    char tmpbuf[256];
+//
+//    str[len] = 0;
+//
+//    if (priv_caps && RIG_BACKEND_NUM(rig->caps->rig_model) == RIG_ICOM && priv_caps->agc_levels_present) {
+//        for (i = 0; i <= HAMLIB_MAX_AGC_LEVELS && priv_caps->agc_levels[i].level != RIG_AGC_LAST; i++) {
+//            if (strlen(str) > 0) { strcat(str, " "); }
+//
+//            snprintf(tmpbuf, sizeof(tmpbuf), "%d=%s",
+//                     priv_caps->agc_levels[i].icom_level,
+//                     rig_stragclevel(priv_caps->agc_levels[i].level));
+//
+//            if (strlen(str) + strlen(tmpbuf) < lenstr - 1) {
+//                strncat(str, tmpbuf, lenstr - 1);
+//            } else {
+//                rig_debug(RIG_DEBUG_ERR, "%s: buffer overrun!!  len=%d > maxlen=%d\n",
+//                          __func__, (int) (strlen(str) + strlen(tmpbuf)), lenstr - 1);
+//            }
+//        }
+//    } else {
+//        for (i = 0; i < HAMLIB_MAX_AGC_LEVELS && i < rig->caps->agc_level_count; i++) {
+//            if (strlen(str) > 0) { strcat(str, " "); }
+//
+//            snprintf(tmpbuf, sizeof(tmpbuf), "%d=%s",
+//                     rig->caps->agc_levels[i],
+//                     rig_stragclevel(rig->caps->agc_levels[i]));
+//            if (strlen(str) + strlen(tmpbuf) < lenstr - 1) {
+//                strncat(str, tmpbuf, lenstr - 1);
+//            } else {
+//                rig_debug(RIG_DEBUG_ERR, "%s: buffer overrun!!  len=%d > maxlen=%d\n",
+//                          __func__, (int) (strlen(str) + strlen(tmpbuf)), lenstr - 1);
+//            }
+//        }
+//    }
+//
+//    return strlen(str);
+//}
+
+std::string rigctld_server::dump_state() {
+    // What follows is a 1 to 1 translation from HamLib commit b4ec8a42
+    std::stringstream result;
+    const int RIGCTLD_PROT_VER = 1;
+    result << std::to_string(RIGCTLD_PROT_VER) << "\n";
+    result << std::to_string(rig->caps->rig_model) << "\n";
+
+    result << "0\n"; // deprecated itu_region
+
+    struct rig_state *rs = &rig->state;
+    for (auto i = 0; i < HAMLIB_FRQRANGESIZ && !RIG_IS_FRNG_END(rs->rx_range_list[i]); i++) {
+        result << format(
+                "%lf %lf 0x%lld %d %d 0x%x 0x%x\n",
+                rs->rx_range_list[i].startf,
+                rs->rx_range_list[i].endf,
+                rs->rx_range_list[i].modes,
+                rs->rx_range_list[i].low_power,
+                rs->rx_range_list[i].high_power,
+                rs->rx_range_list[i].vfo,
+                rs->rx_range_list[i].ant);
+    }
+
+    result << format("0 0 0 0 0 0 0\n");
+
+    for (auto i = 0; i < HAMLIB_FRQRANGESIZ && !RIG_IS_FRNG_END(rs->tx_range_list[i]); i++) {
+        result << format(
+                "%lf %lf 0x%lld %d %d 0x%x 0x%x\n",
+                rs->tx_range_list[i].startf,
+                rs->tx_range_list[i].endf,
+                rs->tx_range_list[i].modes,
+                rs->tx_range_list[i].low_power,
+                rs->tx_range_list[i].high_power,
+                rs->tx_range_list[i].vfo,
+                rs->tx_range_list[i].ant);
+    }
+
+    result << format("0 0 0 0 0 0 0\n");
+
+    for (auto i = 0; i < HAMLIB_TSLSTSIZ && !RIG_IS_TS_END(rs->tuning_steps[i]); i++) {
+        result << format("0x%lld %ld\n",
+                         rs->tuning_steps[i].modes,
+                         rs->tuning_steps[i].ts);
+    }
+
+    result << format("0 0\n");
+
+    for (auto i = 0; i < HAMLIB_FLTLSTSIZ && !RIG_IS_FLT_END(rs->filters[i]); i++) {
+        result << format("0x%lld %ld\n",
+                         rs->filters[i].modes,
+                         rs->filters[i].width);
+    }
+
+    result << format("0 0\n");
+
+    result << format("%ld\n", rs->max_rit);
+    result << format("%ld\n", rs->max_xit);
+    result << format("%ld\n", rs->max_ifshift);
+    result << format("%d\n", rs->announces);
+
+    for (auto i = 0; i < HAMLIB_MAXDBLSTSIZ && rs->preamp[i]; i++) {
+        result << format("%d ", rs->preamp[i]);
+    }
+
+    result << format("\n");
+
+    for (auto i = 0; i < HAMLIB_MAXDBLSTSIZ && rs->attenuator[i]; i++) {
+        result << format("%d ", rs->attenuator[i]);
+    }
+
+    result << format("\n");
+
+    result << format("0x%lld\n", rs->has_get_func);
+    result << format("0x%lld\n", rs->has_set_func);
+    result << format("0x%lld\n", rs->has_get_level);
+    result << format("0x%lld\n", rs->has_set_level);
+    result << format("0x%lld\n", rs->has_get_parm);
+    result << format("0x%lld\n", rs->has_set_parm);
+
+    // TODO: see how to properly do this
+    static int chk_vfo_executed = 1;
+
+    // for 3.3 compatiblility
+    if (chk_vfo_executed) {
+        result << format("vfo_ops=0x%x\n", rig->caps->vfo_ops);
+        result << format("ptt_type=0x%x\n",
+                         rig->state.pttport.type.ptt);
+        result << format("targetable_vfo=0x%x\n", rig->caps->targetable_vfo);
+        result << format("has_set_vfo=%d\n", rig->caps->set_vfo != NULL);
+        result << format("has_get_vfo=%d\n", rig->caps->get_vfo != NULL);
+        result << format("has_set_freq=%d\n", rig->caps->set_freq != NULL);
+        result << format("has_get_freq=%d\n", rig->caps->get_freq != NULL);
+        result << format("has_set_conf=%d\n", rig->caps->set_conf != NULL);
+        result << format("has_get_conf=%d\n", rig->caps->get_conf != NULL);
+
+        // for the future
+//        fprintf(fout, "has_set_trn=%d\n", rig->caps->set_trn != NULL);
+//        fprintf(fout, "has_get_trn=%d\n", rig->caps->get_trn != NULL);
+        result << format("has_power2mW=%d\n", rig->caps->power2mW != NULL);
+        result << format("has_mW2power=%d\n", rig->caps->mW2power != NULL);
+        result << format("has_get_ant=%d\n", rig->caps->get_ant != NULL);
+        result << format("has_set_ant=%d\n", rig->caps->set_ant != NULL);
+        result << format("timeout=%d\n", rig->caps->timeout);
+        result << format("rig_model=%d\n", rig->caps->rig_model);
+        result << format("rigctld_version=%s\n", hamlib_version2);
+
+
+        // TODO: this is hardcoded!!!!!!!!! fix rig_sprintf_agc_levels() before
+//        rig_sprintf_agc_levels(rig, buf, sizeof(buf));
+//        result << format("agc_levels=%s\n", buf);
+        result << format("agc_levels=0=OFF 1=FAST 2=MEDIUM 3=SLOW\n");
+
+        if (rig->caps->ctcss_list) {
+            result << format("ctcss_list=");
+
+            for (auto i = 0; i < CTCSS_LIST_SIZE && rig->caps->ctcss_list[i] != 0; i++) {
+                result << format(" %u.%1u",
+                                 rig->caps->ctcss_list[i] / 10, rig->caps->ctcss_list[i] % 10);
+            }
+
+            result << format("\n");
+        }
+
+        if (rig->caps->dcs_list) {
+            result << format("dcs_list=");
+
+            for (auto i = 0; i < DCS_LIST_SIZE && rig->caps->dcs_list[i] != 0; i++) {
+                result << format(" %u",
+                                 rig->caps->dcs_list[i]);
+            }
+
+            result << format("\n");
+        }
+
+
+        result << format("level_gran=");
+
+        for (auto i = 0; i < RIG_SETTING_MAX; ++i) {
+            if (RIG_LEVEL_IS_FLOAT(i)) {
+                result << format("%d=%g,%g,%g;", i, rig->state.level_gran[i].min.f,
+                                 rig->state.level_gran[i].max.f, rig->state.level_gran[i].step.f);
+            } else {
+                result << format("%d=%d,%d,%d;", i, rig->state.level_gran[i].min.i,
+                                 rig->state.level_gran[i].max.i, rig->state.level_gran[i].step.i);
+            }
+        }
+
+        result << format("\nparm_gran=");
+
+        for (auto i = 0; i < RIG_SETTING_MAX; ++i) {
+            if (RIG_LEVEL_IS_FLOAT(i)) {
+                result << format("%d=%g,%g,%g;", i, rig->state.parm_gran[i].min.f,
+                                 rig->state.parm_gran[i].max.f, rig->state.parm_gran[i].step.f);
+            } else {
+                result << format("%d=%d,%d,%d;", i, rig->state.level_gran[i].min.i,
+                                 rig->state.level_gran[i].max.i, rig->state.level_gran[i].step.i);
+            }
+        }
+
+        result << format("\n");
+
+//        rig->state = rig->caps->rig_model;
+        result << format("rig_model=%d\n", rig->caps->rig_model);
+        result << format("hamlib_version=%s\n", hamlib_version2);
+        result << format("done");
+    }
+
+    return result.str();
 }
