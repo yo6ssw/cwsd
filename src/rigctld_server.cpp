@@ -178,7 +178,7 @@ void rigctld_server::stop() {
 }
 
 
-void rigctld_server::interpret_command(std::string &command, int client_fd) {
+bool rigctld_server::interpret_command(std::string &command, int client_fd) {
     auto cmd = trim(command);
     LOG(DEBUG) << "[c:" << client_fd << "] >> " << cmd;
 
@@ -237,9 +237,13 @@ void rigctld_server::interpret_command(std::string &command, int client_fd) {
         freq_t freq = std::stod(&cmd.c_str()[2]);
         rig_set_freq(rig, RIG_VFO_CURR, freq);
         send_response_to_client("RPRT 0", client_fd);
+    } else if (cmd == "q") {
+        LOG(INFO) << "[c:" << client_fd << "] quit.";
+        return false;
     } else {
         LOG(ERROR) << "[c:" << client_fd << "] unhandled command [" << cmd << "]";
     }
+    return true;
 }
 
 std::string rigctld_server::to_client(powerstat_t status) {
@@ -408,7 +412,9 @@ bool rigctld_server::read_from_client(rigctld_client &client) {
         size_t pos;
         while ((pos = client.read_buffer.find('\n')) != std::string::npos) {
             auto cmd = client.read_buffer.substr(0, pos);
-            interpret_command(cmd, client.fd);
+            if (!interpret_command(cmd, client.fd)) {
+                return false;
+            }
             client.read_buffer.erase(0, cmd.size() + 1);
         }
     }
