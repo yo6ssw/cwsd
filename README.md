@@ -25,4 +25,4 @@ sudo make install
 ## Authors
 
 * YO6SSW - Adrian Scripcă <benishor@gmail.com>
-* YO3GEK - Matei Conovici <cmatei@gmail.com>
+* YO3GEK - Matei Conovici <mconovici@gmail.com>
