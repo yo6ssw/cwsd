@@ -235,6 +235,8 @@ bool rigctld_server::interpret_command(std::string &command, int client_fd) {
         freq_t freq = std::stod(&cmd.c_str()[2]);
         rig_set_freq(rig, RIG_VFO_CURR, freq);
         send_response_to_client("RPRT 0", client_fd);
+    } else if (starts_with(cmd, "l ")) {
+        send_response_to_client("42", client_fd);
     } else if (cmd == "q") {
         LOG(INFO) << "[c:" << client_fd << "] quit.";
         return false;
