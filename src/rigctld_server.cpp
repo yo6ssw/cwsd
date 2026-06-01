@@ -243,6 +243,12 @@ bool rigctld_server::interpret_command(std::string &command, int client_fd) {
         send_response_to_client("42", client_fd);
     } else if (cmd == "q" || cmd == "Q") {
         LOG(INFO) << "[c:" << client_fd << "] quit.";
+        // Real rigctld replies "RPRT 0" to the quit command. Hamlib's
+        // netrigctl_close sends "q\n" and reads that reply; without it the
+        // client's read times out (EAGAIN) and its Hamlib crashes on close.
+        // Flush synchronously here since the connection is about to be closed.
+        send_response_to_client("RPRT 0", client_fd);
+        write_from_client(clients[client_fd]);
         return false;
     } else if (cmd == "j") {
        shortfreq_t rit = 0;
