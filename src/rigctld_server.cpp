@@ -112,8 +112,11 @@ void rigctld_server::work() {
             }
 
             for (auto &r: fds_to_remove) {
-                this->close_client(clients[r]);
-                clients.erase(r);
+                auto it = clients.find(r);
+                if (it != clients.end()) {
+                    this->close_client(it->second);
+                    clients.erase(it);
+                }
             }
 
             if (fd_to_add > 0 || !fds_to_remove.empty()) {
@@ -238,7 +241,7 @@ bool rigctld_server::interpret_command(std::string &command, int client_fd) {
         send_response_to_client("RPRT 0", client_fd);
     } else if (starts_with(cmd, "l ")) {
         send_response_to_client("42", client_fd);
-    } else if (cmd == "q") {
+    } else if (cmd == "q" || cmd == "Q") {
         LOG(INFO) << "[c:" << client_fd << "] quit.";
         return false;
     } else if (cmd == "j") {
