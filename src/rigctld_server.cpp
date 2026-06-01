@@ -525,7 +525,14 @@ void rigctld_server::update_poll_flags() {
 std::string rigctld_server::dump_state() {
     // What follows is a 1 to 1 translation from HamLib commit b4ec8a42
     std::stringstream result;
-    const int RIGCTLD_PROT_VER = 1;
+    // Protocol version 0: Hamlib's netrigctl client reads the whole positional
+    // block below (ranges/steps/filters/preamp/attenuator/has_*) and then
+    // returns immediately, BEFORE its key=value parsing loop. That loop is the
+    // buggy path (e.g. agc_levels[i++] with an un-reset index, plus calloc into
+    // shared static caps) that corrupts the client's heap and crashes it on
+    // close. Version 0 keeps all the useful positional caps while skipping the
+    // entire key=value section. (See Hamlib 4.6.5 rigs/dummy/netrigctl.c:626.)
+    const int RIGCTLD_PROT_VER = 0;
     result << std::to_string(RIGCTLD_PROT_VER) << "\n";
     result << std::to_string(rig->caps->rig_model) << "\n";
 
@@ -534,7 +541,7 @@ std::string rigctld_server::dump_state() {
     struct rig_state *rs = &rig->state;
     for (auto i = 0; i < HAMLIB_FRQRANGESIZ && !RIG_IS_FRNG_END(rs->rx_range_list[i]); i++) {
         result << format(
-                "%lf %lf 0x%lld %d %d 0x%x 0x%x\n",
+                "%lf %lf 0x%llx %d %d 0x%x 0x%x\n",
                 rs->rx_range_list[i].startf,
                 rs->rx_range_list[i].endf,
                 rs->rx_range_list[i].modes,
@@ -548,7 +555,7 @@ std::string rigctld_server::dump_state() {
 
     for (auto i = 0; i < HAMLIB_FRQRANGESIZ && !RIG_IS_FRNG_END(rs->tx_range_list[i]); i++) {
         result << format(
-                "%lf %lf 0x%lld %d %d 0x%x 0x%x\n",
+                "%lf %lf 0x%llx %d %d 0x%x 0x%x\n",
                 rs->tx_range_list[i].startf,
                 rs->tx_range_list[i].endf,
                 rs->tx_range_list[i].modes,
@@ -561,7 +568,7 @@ std::string rigctld_server::dump_state() {
     result << format("0 0 0 0 0 0 0\n");
 
     for (auto i = 0; i < HAMLIB_TSLSTSIZ && !RIG_IS_TS_END(rs->tuning_steps[i]); i++) {
-        result << format("0x%lld %ld\n",
+        result << format("0x%llx %ld\n",
                          rs->tuning_steps[i].modes,
                          rs->tuning_steps[i].ts);
     }
@@ -569,7 +576,7 @@ std::string rigctld_server::dump_state() {
     result << format("0 0\n");
 
     for (auto i = 0; i < HAMLIB_FLTLSTSIZ && !RIG_IS_FLT_END(rs->filters[i]); i++) {
-        result << format("0x%lld %ld\n",
+        result << format("0x%llx %ld\n",
                          rs->filters[i].modes,
                          rs->filters[i].width);
     }
@@ -593,100 +600,19 @@ std::string rigctld_server::dump_state() {
 
     result << format("\n");
 
-    result << format("0x%lld\n", rs->has_get_func);
-    result << format("0x%lld\n", rs->has_set_func);
-    result << format("0x%lld\n", rs->has_get_level);
-    result << format("0x%lld\n", rs->has_set_level);
-    result << format("0x%lld\n", rs->has_get_parm);
-    result << format("0x%lld\n", rs->has_set_parm);
+    result << format("0x%llx\n", rs->has_get_func);
+    result << format("0x%llx\n", rs->has_set_func);
+    result << format("0x%llx\n", rs->has_get_level);
+    result << format("0x%llx\n", rs->has_set_level);
+    result << format("0x%llx\n", rs->has_get_parm);
+    result << format("0x%llx\n", rs->has_set_parm);
 
-    // TODO: see how to properly do this
-    static int chk_vfo_executed = 1;
-
-    // for 3.3 compatiblility
-    if (chk_vfo_executed) {
-        result << format("vfo_ops=0x%x\n", rig->caps->vfo_ops);
-        result << format("ptt_type=0x%x\n",
-                         rig->state.pttport.type.ptt);
-        result << format("targetable_vfo=0x%x\n", rig->caps->targetable_vfo);
-        result << format("has_set_vfo=%d\n", rig->caps->set_vfo != NULL);
-        result << format("has_get_vfo=%d\n", rig->caps->get_vfo != NULL);
-        result << format("has_set_freq=%d\n", rig->caps->set_freq != NULL);
-        result << format("has_get_freq=%d\n", rig->caps->get_freq != NULL);
-        result << format("has_set_conf=%d\n", rig->caps->set_conf != NULL);
-        result << format("has_get_conf=%d\n", rig->caps->get_conf != NULL);
-
-        // for the future
-//        fprintf(fout, "has_set_trn=%d\n", rig->caps->set_trn != NULL);
-//        fprintf(fout, "has_get_trn=%d\n", rig->caps->get_trn != NULL);
-        result << format("has_power2mW=%d\n", rig->caps->power2mW != NULL);
-        result << format("has_mW2power=%d\n", rig->caps->mW2power != NULL);
-        result << format("has_get_ant=%d\n", rig->caps->get_ant != NULL);
-        result << format("has_set_ant=%d\n", rig->caps->set_ant != NULL);
-        result << format("timeout=%d\n", rig->caps->timeout);
-        result << format("rig_model=%d\n", rig->caps->rig_model);
-        result << format("rigctld_version=%s\n", hamlib_version2);
-
-
-        // TODO: this is hardcoded!!!!!!!!! fix rig_sprintf_agc_levels() before
-//        rig_sprintf_agc_levels(rig, buf, sizeof(buf));
-//        result << format("agc_levels=%s\n", buf);
-        result << format("agc_levels=0=OFF 1=FAST 2=MEDIUM 3=SLOW\n");
-
-        if (rig->caps->ctcss_list) {
-            result << format("ctcss_list=");
-
-            for (auto i = 0; i < CTCSS_LIST_SIZE && rig->caps->ctcss_list[i] != 0; i++) {
-                result << format(" %u.%1u",
-                                 rig->caps->ctcss_list[i] / 10, rig->caps->ctcss_list[i] % 10);
-            }
-
-            result << format("\n");
-        }
-
-        if (rig->caps->dcs_list) {
-            result << format("dcs_list=");
-
-            for (auto i = 0; i < DCS_LIST_SIZE && rig->caps->dcs_list[i] != 0; i++) {
-                result << format(" %u",
-                                 rig->caps->dcs_list[i]);
-            }
-
-            result << format("\n");
-        }
-
-
-        result << format("level_gran=");
-
-        for (auto i = 0; i < RIG_SETTING_MAX; ++i) {
-            if (RIG_LEVEL_IS_FLOAT(i)) {
-                result << format("%d=%g,%g,%g;", i, rig->state.level_gran[i].min.f,
-                                 rig->state.level_gran[i].max.f, rig->state.level_gran[i].step.f);
-            } else {
-                result << format("%d=%d,%d,%d;", i, rig->state.level_gran[i].min.i,
-                                 rig->state.level_gran[i].max.i, rig->state.level_gran[i].step.i);
-            }
-        }
-
-        result << format("\nparm_gran=");
-
-        for (auto i = 0; i < RIG_SETTING_MAX; ++i) {
-            if (RIG_LEVEL_IS_FLOAT(i)) {
-                result << format("%d=%g,%g,%g;", i, rig->state.parm_gran[i].min.f,
-                                 rig->state.parm_gran[i].max.f, rig->state.parm_gran[i].step.f);
-            } else {
-                result << format("%d=%d,%d,%d;", i, rig->state.level_gran[i].min.i,
-                                 rig->state.level_gran[i].max.i, rig->state.level_gran[i].step.i);
-            }
-        }
-
-        result << format("\n");
-
-//        rig->state = rig->caps->rig_model;
-        result << format("rig_model=%d\n", rig->caps->rig_model);
-        result << format("hamlib_version=%s\n", hamlib_version2);
-        result << format("done");
-    }
+    // Protocol version 0 ends here: the client returns right after the block
+    // above and must not receive the key=value section (vfo_ops/ptt_type/...
+    // agc_levels/ctcss_list/dcs_list/level_gran/parm_gran/done), whose client
+    // parser corrupts its heap. If this is ever raised to protocol 1, that
+    // section must be re-added — and only after the Hamlib netrigctl client
+    // bugs are fixed upstream.
 
     return result.str();
 }
