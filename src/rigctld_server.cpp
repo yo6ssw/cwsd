@@ -194,6 +194,7 @@ bool rigctld_server::interpret_command(std::string &command, int client_fd) {
         int lock;
         rig_get_lock_mode(rig, &lock);
         send_response_to_client(std::to_string(lock), client_fd);
+	send_response_to_client("", client_fd); // yes, it needs an extra LF
     } else if (cmd == "\\dump_state") {
         send_response_to_client(dump_state(), client_fd);
     } else if (cmd == "f") {
@@ -240,6 +241,14 @@ bool rigctld_server::interpret_command(std::string &command, int client_fd) {
     } else if (cmd == "q") {
         LOG(INFO) << "[c:" << client_fd << "] quit.";
         return false;
+    } else if (cmd == "j") {
+       shortfreq_t rit = 0;
+       rig_get_rit(rig, RIG_VFO_CURR, &rit);
+       send_response_to_client(std::to_string(rit), client_fd);
+    } else if (starts_with(cmd, "l ")) {
+       send_response_to_client("28", client_fd);
+    } else if (cmd == "v") {
+        send_response_to_client("Main", client_fd);
     } else {
         LOG(ERROR) << "[c:" << client_fd << "] unhandled command [" << cmd << "]";
     }
