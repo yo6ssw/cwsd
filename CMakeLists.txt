@@ -6,6 +6,9 @@ include(GitVersion)
 project(cwsd LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 17)
 
+set(THREADS_PREFER_PTHREAD_FLAG ON)
+find_package(Threads REQUIRED)
+
 include_directories("src")
 add_executable(cwsd main.cpp
         src/keyer/keyer.cpp
@@ -57,7 +60,7 @@ add_executable(cwsd main.cpp
         src/cwsd.cpp
         src/cwsd.h
 )
-target_link_libraries(cwsd hamlib)
+target_link_libraries(cwsd hamlib Threads::Threads)
 add_version_info(TARGET cwsd PREFIX cwsdver)
 
 install(TARGETS cwsd DESTINATION /usr/local/bin)
