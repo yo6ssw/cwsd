@@ -21,11 +21,13 @@ public:
     void set_event_bus(event_bus *bus);
     void update();
     void client_worker(key_interface *iface, udp_server *server, timer *clock);
+    void keyer_worker();
 
     key_interface* iface;
     udp_server* server;
     timer clock;
     std::thread worker_thread;
+    std::thread keyer_thread;
     std::atomic<bool> is_running;
     void stop();
 };

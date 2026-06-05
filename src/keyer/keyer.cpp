@@ -1,5 +1,6 @@
 #include <cstring>
 #include <cstdio>
+#include <mutex>
 #include "keyer.h"
 #include "keyer_state_idle.h"
 #include "keyer_state_send_element.h"
@@ -18,6 +19,13 @@ namespace keyer {
     hw_interface *hardware;
     profile profiles[3];
     uint8_t current_profile = 0;
+
+    // Serializes the keyer's shared state across threads. The producer thread feeds the keyer via
+    // winkeyer_data()/get_speed() while the dedicated keyer thread consumes it in update(); both
+    // touch data.winkeyer_* , the winkeyer_buffer and the active profile's speed/timings. This
+    // mutex is non-recursive, so it is locked ONLY at these three entry points — the internal
+    // helpers they call (set_speed(), the state machine's update()s, etc.) must run unlocked.
+    static std::mutex state_mutex;
 
 
     static float audio_level_from_percentage(uint8_t percentage) {
@@ -178,8 +186,20 @@ namespace keyer {
     }
 
     void update() {
-        if (data.current_state != nullptr) {
+        std::lock_guard<std::mutex> lock(state_mutex);
+        // Drain zero-duration (routing) transitions within a single tick. States such as
+        // winkeyer/play only pick the next element and return immediately; switch_to() merely
+        // enter()s the next state, so without this loop the new state's update() would not run
+        // until the following poll tick. That cost a full poll interval of dead air on every
+        // inter-element gap. Timed states (send_element, *_space, autospace) return their own
+        // type until their deadline, which breaks the loop; the cap guards against any
+        // unexpected routing cycle.
+        constexpr int max_transitions_per_tick = 16;
+        for (int i = 0; i < max_transitions_per_tick && data.current_state != nullptr; i++) {
             auto next_state = data.current_state->update(hardware->current_ms());
+            if (next_state == data.current_state->type()) {
+                break;
+            }
             switch_to(next_state);
         }
     }
@@ -284,6 +304,7 @@ namespace keyer {
     }
 
     void winkeyer_data(uint8_t c) {
+        std::lock_guard<std::mutex> lock(state_mutex);
         // check if we are waiting for pending arguments for immediate commands
         bool execute_pending_command = false;
         if (data.winkeyer_waiting_for_arguments > 0) {
@@ -347,6 +368,7 @@ namespace keyer {
     }
 
     float get_speed() {
+        std::lock_guard<std::mutex> lock(state_mutex);
         return get_current_profile().style.character_wpm;
     }
 

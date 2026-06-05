@@ -5,9 +5,37 @@
 #include <sys/ioctl.h>
 #include <thread>
 #include <fcntl.h>
+#include <cstring>
+#include <cerrno>
+#include <pthread.h>
+#include <sched.h>
+#include <sys/mman.h>
 #include "libs/easylogging++.h"
 #include "cw_daemon.h"
 #include "udp_server.h"
+
+namespace {
+    // Promote the calling thread to real-time scheduling and lock the process memory so the
+    // keyer's element timing is not stretched by ordinary scheduler preemption or page faults.
+    // Requires CAP_SYS_NICE / a suitable RLIMIT_MEMLOCK (granted by the systemd unit or root);
+    // on failure we log and keep running at normal priority rather than aborting.
+    void try_set_realtime_priority() {
+        if (mlockall(MCL_CURRENT | MCL_FUTURE) != 0) {
+            LOG(WARNING) << "cwdaemon: mlockall failed (" << std::strerror(errno)
+                         << "); keying may jitter under memory pressure";
+        }
+
+        sched_param sp{};
+        sp.sched_priority = sched_get_priority_min(SCHED_FIFO) + 10;
+        if (pthread_setschedparam(pthread_self(), SCHED_FIFO, &sp) != 0) {
+            LOG(WARNING) << "cwdaemon: could not enable real-time scheduling for the keyer thread ("
+                         << std::strerror(errno)
+                         << "); run as root or grant CAP_SYS_NICE for jitter-free keying";
+        } else {
+            LOG(INFO) << "cwdaemon: keyer thread running at real-time priority " << sp.sched_priority;
+        }
+    }
+}
 
 key_interface::key_interface(const std::string d, timer &t)
         : device(d), clock{t} {
@@ -63,7 +91,6 @@ void cwdaemon_server::client_worker(key_interface *iface, udp_server *server, ti
     bool is_tuning = false;
     uint32_t tune_end_time = 0;
 
-    is_running = true;
     while (is_running) {
         if (server->receive()) {
             auto speed = static_cast<unsigned char>(keyer::get_speed());
@@ -113,8 +140,33 @@ void cwdaemon_server::set_event_bus(event_bus *bus) {
 }
 
 void cwdaemon_server::update() {
-    keyer::update();
+    // Keying is driven by the dedicated keyer_worker() thread (see keyer_worker), not by the
+    // shared main-loop cadence, so there is nothing to do here.
+}
+
+void cwdaemon_server::keyer_worker() {
+    try_set_realtime_priority();
+
+    // Open the serial control lines straight away rather than waiting for the first throttled
+    // check below.
     iface->update();
+
+    // Tick the keyer state machine at a fine, fixed cadence. The element key-up edge can only
+    // land on a tick, so a tighter interval (here 1 ms) plus the real-time priority above keeps
+    // element lengths close to their nominal duration.
+    int iface_check_divider = 0;
+    while (is_running) {
+        keyer::update();
+
+        // Connect/disconnect detection (isatty + possible reopen) is comparatively heavy and
+        // does not need the keyer's cadence; run it roughly every 100 ms.
+        if (++iface_check_divider >= 100) {
+            iface_check_divider = 0;
+            iface->update();
+        }
+
+        std::this_thread::sleep_for(std::chrono::microseconds(1000));
+    }
 }
 
 cwdaemon_server::cwdaemon_server(std::string device, uint16_t listen_port, int initial_wpm) {
@@ -132,11 +184,19 @@ cwdaemon_server::cwdaemon_server(std::string device, uint16_t listen_port, int i
     timeout.tv_usec = 10000;
 
     server = new udp_server(listen_port, timeout);
+
+    is_running = true;
+    keyer_thread = std::thread(&cwdaemon_server::keyer_worker, this);
     worker_thread = std::thread(&cwdaemon_server::client_worker, this, iface, server, &clock);
 }
 
 void cwdaemon_server::stop() {
     is_running = false;
-    worker_thread.join();
+    if (keyer_thread.joinable()) {
+        keyer_thread.join();
+    }
+    if (worker_thread.joinable()) {
+        worker_thread.join();
+    }
     LOG(INFO) << "cwdaemon server shut down";
 }
