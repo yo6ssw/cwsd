@@ -57,6 +57,9 @@ add_executable(cwsd main.cpp
         src/cwdaemon_server.h
         src/audio_stream_server.cpp
         src/audio_stream_server.h
+        src/remote_key_server.cpp
+        src/remote_key_server.h
+        src/remote_key_protocol.h
         src/events.cpp
         src/events.h
         src/cwsd.cpp

@@ -13,9 +13,13 @@ cwsd::cwsd(cwsd_config cfg)
     if (cfg.audio.enabled) {
         audio = new audio_stream_server(cfg.audio);
     }
+    if (cfg.remote_key.enabled) {
+        remote_key = new remote_key_server(cfg.remote_key);
+    }
 }
 
 cwsd::~cwsd() {
+    delete remote_key;
     delete audio;
     delete cwdaemon;
     delete rigctld;
@@ -35,6 +39,9 @@ void cwsd::run() {
         if (config.audio.enabled) {
             audio->update();
         }
+        if (config.remote_key.enabled) {
+            remote_key->update();
+        }
         std::this_thread::sleep_for(std::chrono::milliseconds(2));
     }
     if (config.rigctld.enabled) {
@@ -45,6 +52,9 @@ void cwsd::run() {
     }
     if (config.audio.enabled) {
         audio->stop();
+    }
+    if (config.remote_key.enabled) {
+        remote_key->stop();
     }
 
 }
