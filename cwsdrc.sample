@@ -17,6 +17,16 @@ audio:
   bitrate: 32000           # opus target bitrate in bits/s
   frame_ms: 20             # opus frame size: 2.5/5/10/20/40/60
   client_timeout_ms: 10000 # drop subscribers silent longer than this
+remote_key:                # real paddle keying over the internet (see README/CLAUDE.md)
+  enabled: false
+  port: 6790               # UDP port to bind for the timestamped edge stream
+  # device: /dev/icom7300  # serial device with DTR=key/RTS=PTT; defaults to rig.port
+  # Do NOT enable this together with cwdaemon on the same device: both drive DTR/RTS.
+  playout_ms: 150          # jitter-buffer depth; the rig lags the operator by this much
+  silence_ms: 250          # force key-up if no packet (incl. keepalive) arrives for this long
+  max_key_down_ms: 5000    # hard watchdog: never hold the key down longer than this
+  ptt_lead_ms: 10          # assert PTT this long before the first key-down
+  ptt_tail_ms: 100         # hold PTT this long after the last key-up
 logging:
   level: debug
   filename: /tmp/cwsd.log

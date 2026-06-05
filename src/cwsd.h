@@ -6,6 +6,7 @@
 #include "rigctld_server.h"
 #include "cwdaemon_server.h"
 #include "audio_stream_server.h"
+#include "remote_key_server.h"
 #include <csignal>
 
 struct cwsd_config {
@@ -23,6 +24,7 @@ struct cwsd_config {
         int model;
     } rig;
     audio_stream_config audio;
+    remote_key_config remote_key;
     struct {
         std::string filename = "cwsd.log";
         std::string level = "info";
@@ -46,6 +48,7 @@ private:
     rigctld_server *rigctld = nullptr;
     cwdaemon_server *cwdaemon = nullptr;
     audio_stream_server *audio = nullptr;
+    remote_key_server *remote_key = nullptr;
     struct sigaction sigint_hndlr;
 };
 

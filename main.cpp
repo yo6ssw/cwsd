@@ -142,6 +142,33 @@ cwsd_config read_config(std::string path) {
         }
     }
 
+    if (root.contains("remote_key")) {
+        auto rk_node = root["remote_key"];
+        cfg.remote_key.enabled = rk_node["enabled"].get_value<bool>();
+        if (cfg.remote_key.enabled) {
+            cfg.remote_key.port = rk_node["port"].get_value<int>();
+            // Falls back to the shared rig serial device when not given its own.
+            cfg.remote_key.device = rk_node.contains("device")
+                                    ? rk_node["device"].get_value<std::string>()
+                                    : cfg.rig.port;
+            if (rk_node.contains("playout_ms")) {
+                cfg.remote_key.playout_ms = rk_node["playout_ms"].get_value<uint32_t>();
+            }
+            if (rk_node.contains("silence_ms")) {
+                cfg.remote_key.silence_ms = rk_node["silence_ms"].get_value<uint32_t>();
+            }
+            if (rk_node.contains("max_key_down_ms")) {
+                cfg.remote_key.max_key_down_ms = rk_node["max_key_down_ms"].get_value<uint32_t>();
+            }
+            if (rk_node.contains("ptt_lead_ms")) {
+                cfg.remote_key.ptt_lead_ms = rk_node["ptt_lead_ms"].get_value<uint32_t>();
+            }
+            if (rk_node.contains("ptt_tail_ms")) {
+                cfg.remote_key.ptt_tail_ms = rk_node["ptt_tail_ms"].get_value<uint32_t>();
+            }
+        }
+    }
+
     if (root.contains("logging")) {
         auto log_node = root["logging"];
         if (log_node.contains("level")) {
