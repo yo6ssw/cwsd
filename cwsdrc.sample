@@ -8,6 +8,15 @@ cwdaemon:
 rigctld:
   enabled: true
   port: 4532
+audio:
+  enabled: false
+  device: default          # ALSA capture device, e.g. plughw:CARD=CODEC,DEV=0
+  port: 7355               # UDP port to bind; clients subscribe by sending here
+  sample_rate: 48000       # opus rates only: 8000/12000/16000/24000/48000
+  channels: 1
+  bitrate: 32000           # opus target bitrate in bits/s
+  frame_ms: 20             # opus frame size: 2.5/5/10/20/40/60
+  client_timeout_ms: 10000 # drop subscribers silent longer than this
 logging:
   level: debug
   filename: /tmp/cwsd.log

@@ -116,6 +116,32 @@ cwsd_config read_config(std::string path) {
     cfg.rigctld.enabled = root["rigctld"]["enabled"].get_value<bool>();
     cfg.rigctld.port = root["rigctld"]["port"].get_value<int>();
 
+    if (root.contains("audio")) {
+        auto audio_node = root["audio"];
+        cfg.audio.enabled = audio_node["enabled"].get_value<bool>();
+        if (cfg.audio.enabled) {
+            cfg.audio.port = audio_node["port"].get_value<uint16_t>();
+            if (audio_node.contains("device")) {
+                cfg.audio.device = audio_node["device"].get_value<std::string>();
+            }
+            if (audio_node.contains("sample_rate")) {
+                cfg.audio.sample_rate = audio_node["sample_rate"].get_value<uint32_t>();
+            }
+            if (audio_node.contains("channels")) {
+                cfg.audio.channels = audio_node["channels"].get_value<int>();
+            }
+            if (audio_node.contains("bitrate")) {
+                cfg.audio.bitrate = audio_node["bitrate"].get_value<int>();
+            }
+            if (audio_node.contains("frame_ms")) {
+                cfg.audio.frame_ms = audio_node["frame_ms"].get_value<int>();
+            }
+            if (audio_node.contains("client_timeout_ms")) {
+                cfg.audio.client_timeout_ms = audio_node["client_timeout_ms"].get_value<int>();
+            }
+        }
+    }
+
     if (root.contains("logging")) {
         auto log_node = root["logging"];
         if (log_node.contains("level")) {

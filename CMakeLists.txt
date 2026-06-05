@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.27)
+cmake_minimum_required(VERSION 3.25)
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 include(GitVersion)
@@ -55,12 +55,14 @@ add_executable(cwsd main.cpp
         src/rigctld_server.h
         src/cwdaemon_server.cpp
         src/cwdaemon_server.h
+        src/audio_stream_server.cpp
+        src/audio_stream_server.h
         src/events.cpp
         src/events.h
         src/cwsd.cpp
         src/cwsd.h
 )
-target_link_libraries(cwsd hamlib Threads::Threads)
+target_link_libraries(cwsd hamlib Threads::Threads asound opus)
 add_version_info(TARGET cwsd PREFIX cwsdver)
 
 install(TARGETS cwsd DESTINATION /usr/local/bin)

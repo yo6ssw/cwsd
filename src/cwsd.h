@@ -5,6 +5,7 @@
 #include <atomic>
 #include "rigctld_server.h"
 #include "cwdaemon_server.h"
+#include "audio_stream_server.h"
 #include <csignal>
 
 struct cwsd_config {
@@ -21,6 +22,7 @@ struct cwsd_config {
         std::string port;
         int model;
     } rig;
+    audio_stream_config audio;
     struct {
         std::string filename = "cwsd.log";
         std::string level = "info";
@@ -43,6 +45,7 @@ private:
     static std::atomic<bool> is_running;
     rigctld_server *rigctld = nullptr;
     cwdaemon_server *cwdaemon = nullptr;
+    audio_stream_server *audio = nullptr;
     struct sigaction sigint_hndlr;
 };
 
