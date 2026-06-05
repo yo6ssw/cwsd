@@ -10,9 +10,13 @@ cwsd::cwsd(cwsd_config cfg)
     if (cfg.cwdaemon.enabled) {
         cwdaemon = new cwdaemon_server(cfg.rig.port, cfg.cwdaemon.port, cfg.cwdaemon.initial_wpm);
     }
+    if (cfg.audio.enabled) {
+        audio = new audio_stream_server(cfg.audio);
+    }
 }
 
 cwsd::~cwsd() {
+    delete audio;
     delete cwdaemon;
     delete rigctld;
 }
@@ -28,6 +32,9 @@ void cwsd::run() {
         if (config.cwdaemon.enabled) {
             cwdaemon->update();
         }
+        if (config.audio.enabled) {
+            audio->update();
+        }
         std::this_thread::sleep_for(std::chrono::milliseconds(2));
     }
     if (config.rigctld.enabled) {
@@ -35,6 +42,9 @@ void cwsd::run() {
     }
     if (config.cwdaemon.enabled) {
         cwdaemon->stop();
+    }
+    if (config.audio.enabled) {
+        audio->stop();
     }
 
 }
