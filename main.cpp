@@ -231,5 +231,5 @@ void configure_logging(el::Level level, std::string filename, std::string max_fi
     el::Helpers::installPreRollOutCallback(pre_rollout_callback);
 
     LOG(INFO) << "--------------------------------------------------------------------------------------------";
-    LOG(INFO) << "starting cwsd v" << cwsd_version_string() << std::endl;
+    LOG(INFO) << "starting cwsd v" << cwsd_version_string();
 }

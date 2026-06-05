@@ -63,6 +63,23 @@ add_executable(cwsd main.cpp
         src/cwsd.h
 )
 target_link_libraries(cwsd hamlib Threads::Threads asound opus)
+
+# easylogging++ is not thread-safe unless told so. cwsd logs from several worker
+# threads (keyer, audio, rigctld), so without this their output interleaves into
+# garbled/concatenated lines (e.g. "...priority 11audio streaming...").
+target_compile_definitions(cwsd PRIVATE ELPP_THREAD_SAFE)
+
 add_version_info(TARGET cwsd PREFIX cwsdver)
+
+# add_version_info() captures the git hash at *configure* time. Re-run CMake (and
+# thus regenerate the version header) whenever HEAD moves, so a plain rebuild
+# after a commit/pull/checkout reports the right hash in `cwsd --version`.
+if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/.git/HEAD")
+    set(_git_version_deps "${CMAKE_CURRENT_SOURCE_DIR}/.git/HEAD")
+    if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/.git/logs/HEAD")
+        list(APPEND _git_version_deps "${CMAKE_CURRENT_SOURCE_DIR}/.git/logs/HEAD")
+    endif()
+    set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS ${_git_version_deps})
+endif()
 
 install(TARGETS cwsd DESTINATION /usr/local/bin)
