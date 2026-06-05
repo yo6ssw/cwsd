@@ -92,28 +92,42 @@ bool audio_stream_server::open_socket() {
 }
 
 bool audio_stream_server::open_capture() {
-    int err = snd_pcm_open(&pcm, config.device.c_str(), SND_PCM_STREAM_CAPTURE, SND_PCM_NONBLOCK);
+    // Blocking open: this runs on the worker thread, so a slow open never stalls
+    // the main loop, and snd_pcm_open already fails fast on a missing device.
+    int err = snd_pcm_open(&pcm, config.device.c_str(), SND_PCM_STREAM_CAPTURE, 0);
     if (err < 0) {
         pcm = nullptr;
         return false;
     }
 
-    // Block on reads once opened; non-blocking was only used so a missing device
-    // does not stall the open call.
-    snd_pcm_nonblock(pcm, 0);
+    // Configure with explicit hw_params rather than snd_pcm_set_params(). The
+    // latter's small, latency-derived period (~25 ms at a 100 ms target) makes
+    // some USB audio CODECs (e.g. the IC-7300's) return -EIO on *every* read, so
+    // capture never starts. A larger period/buffer — what arecord negotiates —
+    // captures cleanly; we read in opus-frame chunks regardless of the period.
+    snd_pcm_hw_params_t *hw = nullptr;
+    snd_pcm_hw_params_alloca(&hw);
+    snd_pcm_hw_params_any(pcm, hw);
+    snd_pcm_hw_params_set_access(pcm, hw, SND_PCM_ACCESS_RW_INTERLEAVED);
+    snd_pcm_hw_params_set_format(pcm, hw, SND_PCM_FORMAT_S16_LE);
+    snd_pcm_hw_params_set_channels(pcm, hw, config.channels);
+    unsigned int rate = config.sample_rate;
+    snd_pcm_hw_params_set_rate_near(pcm, hw, &rate, nullptr);
+    snd_pcm_uframes_t period = config.sample_rate / 8;   // ~125 ms
+    snd_pcm_uframes_t buffer = period * 4;               // ~500 ms
+    snd_pcm_hw_params_set_period_size_near(pcm, hw, &period, nullptr);
+    snd_pcm_hw_params_set_buffer_size_near(pcm, hw, &buffer);
 
-    err = snd_pcm_set_params(pcm,
-                             SND_PCM_FORMAT_S16_LE,
-                             SND_PCM_ACCESS_RW_INTERLEAVED,
-                             config.channels,
-                             config.sample_rate,
-                             1,                        // allow ALSA soft-resampling
-                             100000);                  // ~100 ms latency target
+    err = snd_pcm_hw_params(pcm, hw);
     if (err < 0) {
-        LOG(WARNING) << "audio: snd_pcm_set_params failed: " << snd_strerror(err);
+        LOG(WARNING) << "audio: snd_pcm_hw_params failed: " << snd_strerror(err);
         snd_pcm_close(pcm);
         pcm = nullptr;
         return false;
+    }
+    if (rate != config.sample_rate) {
+        LOG(WARNING) << "audio: device capture rate " << rate
+                     << " differs from configured " << config.sample_rate;
     }
     return true;
 }

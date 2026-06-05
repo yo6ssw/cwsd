@@ -185,16 +185,47 @@ std::string cwsd_version_string() {
 }
 
 
+// Severity rank for our log levels (low = chatty, high = severe). NOTE: this is
+// the intuitive order; easylogging++'s own hierarchy ranks Info ABOVE Warning/
+// Error, which is why HierarchicalLogging used to silently hide warnings and
+// errors when the configured level was "info".
+static int severity_of(el::Level level) {
+    switch (level) {
+        case el::Level::Trace:   return 0;
+        case el::Level::Debug:   return 1;
+        case el::Level::Verbose: return 1;
+        case el::Level::Info:    return 2;
+        case el::Level::Warning: return 3;
+        case el::Level::Error:   return 4;
+        case el::Level::Fatal:   return 5;
+        default:                 return 2;
+    }
+}
+
 void configure_logging(el::Level level, std::string filename, std::string max_file_size) {
-    el::Loggers::addFlag(el::LoggingFlag::HierarchicalLogging);
     el::Loggers::addFlag(el::LoggingFlag::StrictLogFileSizeCheck);
-    el::Loggers::setLoggingLevel(level);
 
     el::Configurations log_conf;
     log_conf.setToDefault();
     log_conf.setGlobally(el::ConfigurationType::Format, "%datetime %level %msg");
     log_conf.setGlobally(el::ConfigurationType::Filename, filename);
     log_conf.setGlobally(el::ConfigurationType::MaxLogFileSize, max_file_size);
+
+    // Enable the configured level and everything MORE severe, set explicitly per
+    // level so Warning/Error/Fatal are never hidden (unlike HierarchicalLogging,
+    // which would suppress them at level "info").
+    const int threshold = severity_of(level);
+    auto enable = [&](el::Level l) {
+        log_conf.set(l, el::ConfigurationType::Enabled,
+                     severity_of(l) >= threshold ? "true" : "false");
+    };
+    enable(el::Level::Trace);
+    enable(el::Level::Debug);
+    enable(el::Level::Verbose);
+    enable(el::Level::Info);
+    enable(el::Level::Warning);
+    enable(el::Level::Error);
+    enable(el::Level::Fatal);
     el::Loggers::reconfigureAllLoggers(log_conf);
 
     el::Helpers::installPreRollOutCallback(pre_rollout_callback);
