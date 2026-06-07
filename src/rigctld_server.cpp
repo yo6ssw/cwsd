@@ -190,6 +190,11 @@ bool rigctld_server::interpret_command(std::string &command, int client_fd) {
         powerstat_t status;
         rig_get_powerstat(rig, &status);
         send_response_to_client(to_client(status), client_fd);
+    } else if (starts_with(cmd, "\\set_powerstat ")) {
+        // arg: 0=off, 1=on, 2=standby, 4=operate (hamlib powerstat_t)
+        auto status = static_cast<powerstat_t>(std::stoi(&cmd.c_str()[15]));
+        rig_set_powerstat(rig, status);
+        send_response_to_client("RPRT 0", client_fd);
     } else if (cmd == "\\chk_vfo") {
         // TODO: don't hardcode this
         send_response_to_client("0", client_fd);
