@@ -32,7 +32,7 @@ The process is a thin orchestrator (`cwsd` class in `src/cwsd.cpp`) that owns up
 A partial reimplementation of hamlib's **rigctld TCP protocol** (default port 4532) so clients like WSJT-X/fldigi can query and set frequency, mode, PTT, VFO, etc.
 - Owns the hamlib `RIG*` handle (`rig_init` + `rig_open` using the configured model and serial device path) and serves multiple clients with a single `poll()`-based non-blocking event loop in `work()`.
 - Disconnect detection is a **hack**: a `rig_set_debug_callback` matches the string `"read failed"` to mark the rig disconnected, then the loop drops clients and attempts to reopen. hamlib open/close/cleanup must all happen on the worker thread.
-- `interpret_command()` is the protocol command dispatcher (single-letter commands like `f`/`F`, `m`/`M`, `t`/`T`, `q`/`Q` quit, plus `\`-prefixed extended commands). `dump_state()` is a near 1:1 port of a specific hamlib commit and contains hardcoded values noted with `TODO`s.
+- `interpret_command()` is the protocol command dispatcher (single-letter commands like `f`/`F` freq, `m`/`M` mode+filter-width, `t`/`T` PTT, `q`/`Q` quit, plus `\`-prefixed extended commands like `\get_powerstat`/`\set_powerstat`). Note there is no standalone "filter" command: the filter passband is the width field carried alongside mode in `m`/`M`. `dump_state()` is a near 1:1 port of a specific hamlib commit and contains hardcoded values noted with `TODO`s.
 
 ### cwdaemon_server (`src/cwdaemon_server.*`)
 Implements the **cwdaemon UDP protocol** (default port 6789). `client_worker()` (its own thread) receives datagrams: ESC-prefixed control commands (`ESC 5` = exit, `ESC 4` = abort) and plaintext to key as Morse.
