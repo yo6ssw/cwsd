@@ -2,6 +2,7 @@
 #include <sys/socket.h>
 #include "rigctld_server.h"
 #include <fcntl.h>
+#include <unistd.h>
 #include <netinet/in.h>
 #include "libs/easylogging++.h"
 #include "string_util.h"
@@ -169,6 +170,19 @@ bool rigctld_server::open_rig() {
 }
 
 void rigctld_server::on_rig_disconnect() {
+    // A CI-V read fails for two very different reasons, and Hamlib's "read
+    // failed" message can't tell them apart: the USB cable was pulled (the
+    // device node vanishes), or the rig was merely switched to standby — still
+    // on the bus, just no longer answering CI-V. Only the former is a real
+    // disconnect. Tearing the connection down for standby too would close the
+    // serial port and stop interpreting client commands (see read_from_client),
+    // so we could never deliver the \set_powerstat 1 that wakes the rig back up
+    // — remote power-on would be impossible. Treat the rig as gone only when its
+    // device node has actually disappeared; otherwise leave the handle open so
+    // the power-on command still reaches the (sleeping but present) radio.
+    if (access(device.c_str(), F_OK) == 0)
+        return;  // device still present -> rig is asleep, not unplugged
+
     bool expected = false;
     if (rig_disconnected.compare_exchange_strong(expected, true)) {
         // disconnected just now
