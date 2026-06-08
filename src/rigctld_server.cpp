@@ -145,7 +145,10 @@ bool rigctld_server::open_rig() {
         LOG(DEBUG) << "rig_init returned null";
         throw std::runtime_error("unknown rig num");
     }
-    strncpy(rig->state.rigport.pathname, device.c_str(), FILPATHLEN - 1);
+    // sizeof the field rather than FILPATHLEN: Hamlib 4.6+ renamed that constant
+    // to HAMLIB_FILPATHLEN, and sizeof works against both old and new headers.
+    strncpy(rig->state.rigport.pathname, device.c_str(),
+            sizeof(rig->state.rigport.pathname) - 1);
 
     int result;
 
