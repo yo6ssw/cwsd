@@ -26,7 +26,34 @@ Config is read from `~/.config/cwsdrc`. Despite the `rc` name it is **YAML**, pa
 
 ## Architecture
 
-The process is a thin orchestrator (`cwsd` class in `src/cwsd.cpp`) that owns up to two optional servers, each gated by config. `cwsd::run()` is a 2 ms polling loop calling `update()` on each enabled server; a `SIGINT`/`SIGTERM` handler flips the static `is_running` flag to shut down. Each server additionally runs **its own worker thread**, so `update()` on the main thread is light.
+The process is a thin orchestrator (`cwsd` class in `src/cwsd.cpp`) that owns up to four servers, each gated by its own config section. `cwsd::run()` is a 2 ms polling loop calling `update()` on each enabled server; a `SIGINT`/`SIGTERM` handler flips the static `is_running` flag to shut down. Each server additionally runs **its own worker thread**, so `update()` on the main thread is light (for `audio_stream_server` and `remote_key_server`, `update()` is a no-op — they are driven entirely by their worker threads).
+
+```mermaid
+flowchart LR
+    subgraph rig["IC-7300 (USB)"]
+      cat["serial: CAT + DTR/RTS"]
+      snd["audio CODEC (ALSA)"]
+    end
+
+    subgraph cwsd["cwsd orchestrator (2 ms loop)"]
+      rigctld["rigctld_server<br/>TCP 4532 · hamlib RIG*"]
+      cwd["cwdaemon_server<br/>UDP 6789 · keyer engine"]
+      audio["audio_stream_server<br/>UDP 7355 · Opus"]
+      rkey["remote_key_server<br/>UDP 6790 · edge replay"]
+    end
+
+    cat <-->|"rig_open / set / get"| rigctld
+    cat <-->|"DTR=key RTS=PTT"| cwd
+    cat <-->|"DTR=key RTS=PTT"| rkey
+    snd -->|"snd_pcm_readi"| audio
+
+    rigctld <--> ctl["WSJT-X / fldigi / loggers"]
+    cwd <--> txt["text to key as Morse"]
+    audio --> subs["Opus subscribers"]
+    rkey <--> op["operator paddle client"]
+```
+
+(`cwdaemon` and `remote_key` are mutually exclusive on the same serial device — both drive DTR/RTS.)
 
 ### rigctld_server (`src/rigctld_server.*`)
 A partial reimplementation of hamlib's **rigctld TCP protocol** (default port 4532) so clients like WSJT-X/fldigi can query and set frequency, mode, PTT, VFO, etc.
