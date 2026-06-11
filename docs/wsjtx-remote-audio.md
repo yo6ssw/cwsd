@@ -433,6 +433,16 @@ ldconfig -p | grep libroc                                            # libroc pr
 > tracking *worse*. So the config below uses `fec.code = disable`, no control port, and the
 > `intact` tuner. Matching libroc versions on both ends would let you re-enable the control
 > port for smoother sync, but `intact` is what made it rock-solid here.
+>
+> **Changing rate or channel count needs PipeWire ≥1.6 on *both* ends — not just libroc 0.4.**
+> The wire encoding is set by the PipeWire roc *module*, not the library. Modules older than
+> ~1.6 (e.g. Ubuntu 25.10's **1.4.7**) import no `roc_context_register_encoding` and ignore
+> `audio.position`, so they are locked to ROC's built-in **L16 @ 44100 stereo** — you cannot
+> select **16 kHz** *or* **mono**. Only PipeWire ≥1.6 honors `audio.rate`/`audio.position`
+> (and registers a matching custom encoding). Both ends must agree, so the *oldest* roc
+> module in the path sets the ceiling. To drop bandwidth on an old end, the alternative is
+> building roc-toolkit from source and using the `roc-send`/`roc-recv` CLI (custom encodings),
+> bypassing the module.
 
 ROC is a **sender → receiver push**, so each direction has its own sender, receiver, and
 UDP port (FEC off → one RTP port per direction, no repair port):
