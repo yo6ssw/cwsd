@@ -20,6 +20,24 @@ sudo make install         # installs to /usr/local/bin
 - Run: `./cwsd` (foreground), `./cwsd -d` (daemonize via double-fork), `./cwsd --version`.
 - There is **no test suite** and no linter configured.
 
+> **Rebuild cwsd after any hamlib (or OS) upgrade — CAT breaks *silently* otherwise.**
+> cwsd links `libhamlib` dynamically, and hamlib changes its ABI within the 4.x series
+> while keeping the `libhamlib.so.4` soname. So after an upgrade the **old binary still
+> links and runs** — `ldd` resolves, the Opus audio stream works — but `rigctld_server`'s
+> use of the misaligned hamlib API fails: it accepts TCP clients yet returns **nothing** to
+> every command (`f`, `m`, even the hardcoded `\dump_state`), so WSJT-X just connect/times-out
+> every ~10 s. "It still runs" is **not** proof it works; verify CAT explicitly:
+> `python3 -c 'import socket,time;s=socket.create_connection((HOST,4532),timeout=4);s.settimeout(3);s.sendall(b"f\n");time.sleep(.4);print(s.recv(60))'`
+> should return the dial frequency. The fix is just `cmake .. && make && sudo make install`
+> against the current hamlib, then restart cwsd.
+>
+> **Updating hamlib itself** (no usable Ubuntu PPA exists — the ones on Launchpad are years
+> stale): build the latest release from source — `curl -L .../hamlib-X.Y.Z.tar.gz`,
+> `./configure --prefix=/usr/local && make && sudo make install && sudo ldconfig`. It
+> installs `libhamlib.so.4` to `/usr/local/lib`, which `ldconfig` prefers over the distro
+> copy in `/usr/lib`; the apt package stays installed but shadowed (so apt hamlib updates no
+> longer reach cwsd — you now manage it manually). **Then rebuild cwsd** (above).
+
 ## Configuration
 
 Config is read from `~/.config/cwsdrc`. Despite the `rc` name it is **YAML**, parsed via the bundled fkYAML header (`src/libs/node.hpp`). See `cwsdrc.sample`. The `rig.model` field is a hamlib rig model number (e.g. `3073` = IC-7300). Each service (`cwdaemon`, `rigctld`) has its own `enabled` flag and TCP/UDP port.
