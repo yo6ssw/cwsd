@@ -480,7 +480,7 @@ context.modules = [
         local.ip                   = 0.0.0.0
         local.source.port          = 10001
         fec.code                   = disable
-        sess.latency.msec          = 200
+        sess.latency.msec          = 100
         roc.latency-tuner.profile  = intact
         audio.position             = [ MONO ]
         source.name                = rig_rx_roc
@@ -506,11 +506,13 @@ and `audio.rate` lines.)
 
 - `roc.latency-tuner.profile = intact` **disables clock-rate resampling** — that is what
   removes the pitch drift. The trade-off: with no rate-matching, the buffer is not refilled,
-  so it must be **deep enough to ride out network jitter** — that sets the latency floor.
-  On this link (~50 ms RTT, 7 ms mdev) `sess.latency.msec = 200` gives ~225 ms one-way
-  latency with only occasional sub-40 ms gaps; **80 ms underran badly (~19% silence)**.
-  Lower latency needs the `gradual`/`responsive` tuner, which rate-matches but **wobbles
-  the pitch** — unacceptable for WSJT-X. So `intact` trades latency for frequency stability.
+  so `sess.latency.msec` must be **deep enough to ride out network jitter** — that sets the
+  latency floor, and the floor tracks the link. On this **WiFi LAN** (jitter mostly ~4 ms
+  but bursting to ~50 ms) measured underruns over 25 s at 16 kHz mono were: **60 ms → 2.2%
+  silence**, **100 ms → 0.3%** (a few sub-30 ms gaps, negligible for FT8), **200 ms → ~0**.
+  So `100` is a sensible floor here; a busier/remoter link (or wired Ethernet) shifts it.
+  Going lower needs the `gradual`/`responsive` tuner, which rate-matches but **wobbles the
+  pitch** — unacceptable for WSJT-X. So `intact` trades latency for frequency stability.
 - `media.class = Audio/Source` is required or the node loads as a playback stream you
   can't record from.
 - Do **not** set `audio.rate` — libroc 0.3 only supports its built-in 44100 PCM encoding;
@@ -550,7 +552,7 @@ context.modules = [
         local.ip                   = 0.0.0.0
         local.source.port          = 10005
         fec.code                   = disable
-        sess.latency.msec          = 200
+        sess.latency.msec          = 100
         roc.latency-tuner.profile  = intact
         audio.position             = [ MONO ]
         source.name                = rig_tx_in
