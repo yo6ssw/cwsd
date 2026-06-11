@@ -163,9 +163,11 @@ runs these `load-module` commands every time pipewire-pulse starts, creating loc
 devices **`rig_rx`** (source) and **`rig_tx`** (sink):
 
 ```
+# latency_msec lowers the tunnel jitter buffer from the ~100 ms default (=50 here
+# gives ~25 ms each side). Smaller = lower latency, more dropout risk on a jittery LAN.
 pulse.cmd = [
-    { cmd = "load-module" args = "module-tunnel-source server=tcp:brain.local:4713 source=alsa_input.usb-Burr-Brown_from_TI_USB_Audio_CODEC-00.analog-stereo source_name=rig_rx" }
-    { cmd = "load-module" args = "module-tunnel-sink   server=tcp:brain.local:4713 sink=alsa_output.usb-Burr-Brown_from_TI_USB_Audio_CODEC-00.analog-stereo sink_name=rig_tx" }
+    { cmd = "load-module" args = "module-tunnel-source server=tcp:brain.local:4713 source=alsa_input.usb-Burr-Brown_from_TI_USB_Audio_CODEC-00.analog-stereo source_name=rig_rx latency_msec=50" }
+    { cmd = "load-module" args = "module-tunnel-sink   server=tcp:brain.local:4713 sink=alsa_output.usb-Burr-Brown_from_TI_USB_Audio_CODEC-00.analog-stereo sink_name=rig_tx latency_msec=50" }
 ]
 ```
 
