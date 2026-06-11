@@ -281,7 +281,22 @@ bool rigctld_server::interpret_command(std::string &command, int client_fd) {
         rig_set_freq(rig, RIG_VFO_CURR, freq);
         send_response_to_client("RPRT 0", client_fd);
     } else if (starts_with(cmd, "l ")) {
-        send_response_to_client("42", client_fd);
+        // get level: "l <LEVEL>" e.g. SWR / RFPOWER / RFPOWER_METER / STRENGTH / ALC.
+        // Previously hardcoded to a constant, so SWR/power meters read garbage; read
+        // the real value via hamlib. rig_parse_level maps the name to the level token;
+        // float levels (SWR, RFPOWER, ALC, *_METER) report a float, int levels (STRENGTH)
+        // an int — exactly as real rigctld does.
+        setting_t level = rig_parse_level(&cmd.c_str()[2]);
+        value_t val{};
+        int rc = rig_get_level(rig, RIG_VFO_CURR, level, &val);
+        std::string resp;
+        if (rc != RIG_OK)
+            resp = "RPRT " + std::to_string(rc);
+        else if (RIG_LEVEL_IS_FLOAT(level))
+            resp = std::to_string(val.f);
+        else
+            resp = std::to_string(val.i);
+        send_response_to_client(resp, client_fd);
     } else if (cmd == "q" || cmd == "Q") {
         LOG(INFO) << "[c:" << client_fd << "] quit.";
         // Real rigctld replies "RPRT 0" to the quit command. Hamlib's
@@ -295,8 +310,6 @@ bool rigctld_server::interpret_command(std::string &command, int client_fd) {
        shortfreq_t rit = 0;
        rig_get_rit(rig, RIG_VFO_CURR, &rit);
        send_response_to_client(std::to_string(rit), client_fd);
-    } else if (starts_with(cmd, "l ")) {
-       send_response_to_client("28", client_fd);
     } else if (cmd == "v") {
         send_response_to_client("Main", client_fd);
     } else {
