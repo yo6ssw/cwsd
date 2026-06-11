@@ -8,6 +8,10 @@ This is "Option B": WSJT-X stays on the workstation, and the rig host keeps runn
 cwsd for CAT/CW. cwsd's own (RX-only) audio server is turned **off** here, because the
 USB CODEC capture device can only be opened once and PipeWire needs it.
 
+> **LAN vs WAN.** Parts 1–5 use a PipeWire-Pulse tunnel, which is correct on a LAN. Over a
+> **WAN/VPN** that tunnel's clock recovery breaks and decoded signals drift in frequency —
+> carry RX audio with **ROC** instead (**Part 6**).
+
 ---
 
 ## Architecture
@@ -257,9 +261,17 @@ pw-metadata -n settings | grep -E "clock.rate|allowed"   # both → 48000 / [ 48
 
 This removes rate-switch ratio errors. It does **not** remove the few-ppm crystal
 difference between the two clocks — `module-tunnel-source` adaptively resamples to track
-the rig host, which is correct. If a **constant Hz offset** remains across the whole band,
-it is the rig's reference oscillator (IC-7300 *Menu → Set → Function → REF Adjust*), not
-the audio path. If DF **drifts within a transmission**, that is residual clock tracking.
+the rig host. If a **constant Hz offset** remains across the whole band, it is the rig's
+reference oscillator (IC-7300 *Menu → Set → Function → REF Adjust*), not the audio path.
+
+> **Over a LAN this is enough. Over a WAN/VPN it is not.** The Pulse tunnel's adaptive
+> resampler estimates the remote clock from packet arrival timing, and on a jittery,
+> high-latency link that estimate **never locks** — it ramps continuously, so every audio
+> frequency drifts (measured here: a 6000 Hz tone arrived at 6008 Hz and climbing,
+> ~+1400 ppm and rising; a bigger `latency_msec` made it *worse*). Pinning the rate cannot
+> fix this because the error is in dynamic clock *tracking*, not nominal rate. If you are
+> remote over a VPN and see signals drifting in frequency, **replace the Pulse tunnel with
+> ROC** — see *Part 6*.
 
 ---
 
@@ -296,7 +308,11 @@ printf 'f\n' | nc -w3 brain.local 4532          # prints e.g. 18077000.000000
 | PipeWire daemon won't start after editing `context.objects` | A bad node spec is fatal to the whole daemon; `journalctl --user -u pipewire`, fix/remove the drop-in, `systemctl --user reset-failed pipewire`. |
 | `rig_rx`/`rig_tx` missing after rig-host reboot | Tunnels load only if the rig host's pulse server is reachable at the time; `systemctl --user restart pipewire-pulse` on the workstation to retry. |
 | CAT dead after touching the user manager | `sudo systemctl restart user@UID.service` can stop cwsd; `sudo systemctl restart cwsd`. |
-| Decoded signals at a shifted/drifting frequency | **Not** the network — it's the sample clock. Pin both ends to 48000 (see *Sample rate — pin both ends*). A constant whole-band Hz offset that survives pinning = rig REF Adjust, not the tunnel. Buffers (`latency_msec`) cure dropouts, not pitch. |
+| Decoded signals at a shifted/drifting frequency | **Not** the network — it's the sample clock. First pin both ends to 48000 (see *Sample rate — pin both ends*). A constant whole-band Hz offset that survives pinning = rig REF Adjust, not the tunnel. Buffers (`latency_msec`) cure dropouts, **not** pitch. Over a **WAN/VPN** the Pulse tunnel's clock tracking ramps without bound — pinning can't fix it; switch RX to **ROC** (*Part 6*). |
+| ROC: `no codec available for fec scheme 'rs8m'` (daemon exits 234) | The packaged `libroc` was built without FEC. Set `fec.code = disable` on both ends (plain RTP, source port only). |
+| ROC source loads but isn't recordable (shows `Stream/Output/Audio`) | Add `media.class = Audio/Source` to the module's `source.props`. |
+| ROC: `failed to select packet_encoding matching frame_encoding` (daemon exits 234) | libroc 0.3 (Ubuntu 24.04) only supports its built-in 44100 PCM encoding — do **not** set `audio.rate` on the ROC sink/source; let it run at 44100 (PipeWire resamples to 48000 locally, exact ratio). |
+| ROC: frequency *wobbles* ±1000 ppm or worse | Default `gradual` latency-tuner over a jittery WAN over-corrects; set `roc.latency-tuner.profile = intact` on the **receiver** to disable clock-rate resampling (stable pitch, rare buffer-drift glitch). Do **not** enable the RTCP `control.port` between mismatched libroc versions (0.3↔0.4) — it makes tracking *worse*. |
 
 ---
 
@@ -377,6 +393,151 @@ timeout 5 parecord -d rig_rx --raw /tmp/rx.raw && ls -l /tmp/rx.raw  # WSJT-X tu
 
 ---
 
+## Part 6 — Frequency-stable RX audio over a WAN/VPN with ROC
+
+The PipeWire Pulse tunnel (Parts 1–2) is fine on a LAN but **fails over a WAN/VPN**: its
+adaptive resampler can't lock onto the remote clock through internet jitter, so the audio
+**drifts in frequency without bound** and WSJT-X decodes sit at the wrong, moving DF.
+Pinning the rate (above) does not help — the error is in clock *tracking*. The fix is to
+carry RX audio with **[ROC](https://roc-streaming.org/)** (`roc-toolkit`), which is built
+for real-time audio over lossy/jittery networks and does proper clock-drift recovery.
+
+This section replaces **only the RX path** (rig → WSJT-X). CAT stays on rigctld; TX still
+uses the Pulse `rig_tx` tunnel (see *TX* note at the end).
+
+### Measured, on this OpenVPN link (~55 ms RTT)
+
+A known **6000.000 Hz** tone, generated on the rig host and measured on the workstation:
+
+| Transport | Result |
+|-----------|--------|
+| PipeWire Pulse tunnel | **+1400 ppm and climbing** (6008 Hz → worse over time); bigger `latency_msec` made it worse |
+| ROC, default `gradual` tuner | flat for ~8 s then **±1000–5000 ppm** sustained excursions |
+| **ROC, `intact` tuner** | **flat 0 ppm**, stable indefinitely (within-window drift 0.000 Hz) ✓ |
+
+### 6.1 Prerequisites (both machines)
+
+The ROC PipeWire modules and `libroc` ship with the distro audio stack:
+
+```bash
+ls /usr/lib/*/pipewire-0.3/libpipewire-module-roc-{sink,source}.so   # must exist
+ldconfig -p | grep libroc                                            # libroc present
+# if missing:  sudo apt install libroc0.4   (or libroc0.3 on Ubuntu 24.04)
+```
+
+> **Version skew is real.** Ubuntu 24.04 ships **libroc 0.3**; newer desktops have **0.4**.
+> They interoperate over plain RTP, but (a) these builds have **no FEC** compiled, and
+> (b) the **RTCP control channel is incompatible across 0.3↔0.4** — enabling it makes clock
+> tracking *worse*. So the config below uses `fec.code = disable`, no control port, and the
+> `intact` tuner. Matching libroc versions on both ends would let you re-enable the control
+> port for smoother sync, but `intact` is what made it rock-solid here.
+
+ROC is a **sender → receiver push**: the **rig host sends** to the **workstation**. The rig
+host must be able to reach the workstation's address — here the OpenVPN client IP
+**`10.8.0.6`**. RX uses one UDP port, **10001** (RTP); with FEC off the repair port is unused.
+
+```bash
+# from the rig host, confirm it can reach the workstation:
+ping -c2 10.8.0.6
+# if the workstation runs a firewall, allow the ROC port from the rig host:
+sudo ufw allow proto udp from 192.168.3.41 to any port 10001 comment "ROC rig audio"
+```
+
+### 6.2 Receiver — workstation
+
+Drop-in `~/.config/pipewire/pipewire.conf.d/40-roc-rig.conf`:
+
+```
+context.modules = [
+  { name = libpipewire-module-roc-source
+    args = {
+        local.ip                   = 0.0.0.0
+        local.source.port          = 10001
+        fec.code                   = disable
+        sess.latency.msec          = 300
+        roc.latency-tuner.profile  = intact
+        source.name                = rig_rx_roc
+        source.props               = { node.description = "ROC rig RX" media.class = Audio/Source }
+    }
+  }
+]
+```
+
+- `roc.latency-tuner.profile = intact` **disables clock-rate resampling** — that is what
+  removes the pitch drift. The trade-off: the jitter buffer slowly drifts at the raw clock
+  difference (~30 ppm), so once every few **hours** it overflows and produces one brief
+  click. Harmless for FT8; the alternative (`gradual`/`responsive`) wobbles the pitch.
+- `media.class = Audio/Source` is required or the node loads as a playback stream you
+  can't record from.
+- Do **not** set `audio.rate` — libroc 0.3 only supports its built-in 44100 PCM encoding;
+  forcing 48000 crashes the daemon. The stream runs at 44100 and PipeWire resamples to
+  WSJT-X's 48000 with an exact, clock-clean ratio.
+
+### 6.3 Sender — rig host
+
+Drop-in `~/.config/pipewire/pipewire.conf.d/40-roc-rig.conf` (a loopback feeds the rig
+capture into the ROC sink):
+
+```
+context.modules = [
+  { name = libpipewire-module-roc-sink
+    args = {
+        remote.ip          = 10.8.0.6
+        remote.source.port = 10001
+        fec.code           = disable
+        sink.name          = rig_audio_send
+        sink.props         = { node.description = "rig audio -> ROC" }
+    }
+  }
+  { name = libpipewire-module-loopback
+    args = {
+        node.description = "rig RX -> ROC sink"
+        capture.props  = { node.target = "alsa_input.usb-Burr-Brown_from_TI_USB_Audio_CODEC-00.analog-stereo" }
+        playback.props = { node.target = "rig_audio_send" stream.dont-remix = true }
+    }
+  }
+]
+```
+
+### 6.4 Apply and verify
+
+```bash
+# both machines (receiver first so it is listening before the sender starts):
+systemctl --user restart pipewire.service pipewire-pulse.service wireplumber.service
+
+# rig host: the ROC sink is RUNNING (loopback feeding it from the rig source)
+pactl list short sinks | grep rig_audio_send
+
+# workstation: the source exists, and carries real (non-silent) rig audio
+pactl list short sources | grep rig_rx_roc
+timeout 4 parecord -d rig_rx_roc --channels=1 --format=s16le --rate=48000 --raw /tmp/r.raw
+python3 -c "import numpy as np;d=np.fromfile('/tmp/r.raw','<i2');print('peak',int(abs(d).max()))"
+```
+
+Then in **WSJT-X → Settings → Audio → Soundcard → Input**, select **"ROC rig RX"**
+(`rig_rx_roc`) instead of the Pulse tunnel. A steady reference (beacon/WWV/carrier) should
+now hold a constant DF. The Pulse `rig_rx` tunnel can be left loaded as a fallback or
+removed from `30-rig-tunnel.conf`.
+
+### TX (still on the Pulse tunnel)
+
+WSJT-X transmit still goes over the Pulse `rig_tx` sink. The same clock skew applies to the
+tones you transmit, but as a *fixed* sub-Hz offset it is harmless. To make TX ROC too,
+mirror the above in the other direction: a `libpipewire-module-roc-sink` on the workstation
+fed by WSJT-X's output, and a `libpipewire-module-roc-source` (also `intact`) on the rig
+host whose output is looped into the rig's `alsa_output` sink — on a second port (e.g.
+10005), with the rig host now the receiver.
+
+### Teardown (revert RX to the Pulse tunnel)
+
+```bash
+rm ~/.config/pipewire/pipewire.conf.d/40-roc-rig.conf      # on BOTH machines
+systemctl --user restart pipewire.service pipewire-pulse.service wireplumber.service
+# then re-select the Pulse "Tunnel to …" input in WSJT-X
+```
+
+---
+
 ## Alternatives (not used here)
 
 - **SSH tunnel instead of open TCP** — keep pulse on `127.0.0.1:4713`, no firewall
@@ -385,5 +546,5 @@ timeout 5 parecord -d rig_rx --raw /tmp/rx.raw && ls -l /tmp/rx.raw  # WSJT-X tu
 - **USB/IP** — forward the rig's whole USB (serial + audio) to the workstation so
   everything is local; but this *detaches* the rig from the host, so cwsd loses it.
 - **Run WSJT-X on the rig host, remote the display** (X11/VNC) — audio stays local,
-  but needs a GUI stack on the headless box.
-```
+  so there is no cross-clock resampling at all (the most robust fix for frequency
+  stability), but it needs a GUI stack on the headless box.
