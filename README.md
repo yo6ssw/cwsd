@@ -17,30 +17,9 @@ in the config and listens on its own port.
 | audio stream  | `audio`        | UDP 7355     | Opus over UDP       | no                 | Capture rig audio (ALSA), Opus-encode, fan out to subscribers. |
 | remote key    | `remote_key`   | UDP 6790     | timestamped edges   | no                 | Replay real paddle keying over the internet (DTR=key, RTS=PTT). |
 
-```mermaid
-flowchart LR
-    subgraph rig["Icom IC-7300"]
-      cat["USB serial<br/>(CAT + DTR/RTS)"]
-      snd["USB audio CODEC"]
-    end
+![cwsd service architecture](docs/architecture.svg)
 
-    subgraph cwsd["cwsd daemon"]
-      rigctld["rigctld server<br/>TCP 4532"]
-      cwd["cwdaemon server<br/>UDP 6789"]
-      audio["audio stream server<br/>UDP 7355"]
-      rkey["remote key server<br/>UDP 6790"]
-    end
-
-    cat <--> rigctld
-    cat <--> cwd
-    cat <--> rkey
-    snd --> audio
-
-    rigctld <--> ctl["WSJT-X / fldigi /<br/>logging software"]
-    cwd <--> keyclient["contest / keying<br/>software"]
-    audio --> listeners["Opus listeners<br/>(subscribe by sending a datagram)"]
-    rkey <--> paddle["operator paddle client<br/>(streams timestamped key edges)"]
-```
+<sub>Diagram source: [`docs/architecture.dot`](docs/architecture.dot) — regenerate with `dot -Tsvg docs/architecture.dot -o docs/architecture.svg`.</sub>
 
 > **Note:** `cwdaemon` and `remote_key` both drive the same DTR/RTS control lines, so do
 > **not** enable them together on the same serial device — they are alternative keying

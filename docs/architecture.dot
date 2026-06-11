@@ -1,0 +1,45 @@
+// cwsd service architecture — render with:  dot -Tsvg architecture.dot -o architecture.svg
+digraph cwsd {
+    rankdir=LR;
+    bgcolor="white";
+    pad="0.3";
+    fontname="Helvetica";
+    node  [fontname="Helvetica", fontsize=11];
+    edge  [fontname="Helvetica", fontsize=9, color="#555555"];
+
+    // ---- Icom IC-7300 (USB: serial + audio) ----
+    subgraph cluster_rig {
+        label="Icom IC-7300";
+        style="rounded,filled"; color="#9ec5fe"; fillcolor="#e7f1ff"; fontsize=12;
+        cat [label="USB serial\n(CAT + DTR/RTS)", shape=box, style="filled,rounded", fillcolor="#cfe2ff"];
+        snd [label="USB audio CODEC",            shape=box, style="filled,rounded", fillcolor="#cfe2ff"];
+    }
+
+    // ---- cwsd daemon: four independent services ----
+    subgraph cluster_cwsd {
+        label="cwsd daemon";
+        style="rounded,filled"; color="#a3cfbb"; fillcolor="#eafaf1"; fontsize=12;
+        rigctld [label="rigctld server\nTCP 4532",      shape=box, style="filled,rounded", fillcolor="#d1e7dd"];
+        cwd     [label="cwdaemon server\nUDP 6789",     shape=box, style="filled,rounded", fillcolor="#d1e7dd"];
+        audio   [label="audio stream server\nUDP 7355", shape=box, style="filled,rounded", fillcolor="#d1e7dd"];
+        rkey    [label="remote key server\nUDP 6790",   shape=box, style="filled,rounded", fillcolor="#d1e7dd"];
+    }
+
+    // ---- external clients ----
+    ctl       [label="WSJT-X / fldigi /\nlogging software",            shape=note, style=filled, fillcolor="#fff3cd"];
+    keyclient [label="contest / keying\nsoftware",                     shape=note, style=filled, fillcolor="#fff3cd"];
+    listeners [label="Opus listeners\n(subscribe by sending\na datagram)", shape=note, style=filled, fillcolor="#fff3cd"];
+    paddle    [label="operator paddle client\n(streams timestamped\nkey edges)", shape=note, style=filled, fillcolor="#fff3cd"];
+
+    // rig <-> services (DTR=key / RTS=PTT on the serial line; audio capture one-way)
+    cat -> rigctld [dir=both, label="CAT"];
+    cat -> cwd     [dir=both, label="DTR/RTS"];
+    cat -> rkey    [dir=both, label="DTR/RTS"];
+    snd -> audio   [label="capture"];
+
+    // services <-> clients
+    rigctld   -> ctl       [dir=both];
+    cwd       -> keyclient [dir=both];
+    audio     -> listeners [label="Opus/UDP"];
+    rkey      -> paddle    [dir=both, label="edges/UDP"];
+}
