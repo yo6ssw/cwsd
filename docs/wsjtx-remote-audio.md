@@ -227,7 +227,39 @@ uses the left channel). Click **OK**.
   zero** (clean drive, no ALC action). Leave `rig_tx` near 100% (`pactl set-sink-volume
   rig_tx …`) and control drive with the rig's USB MOD level + the Pwr slider.
 - **Clock:** decoding needs accurate time — `timedatectl` should show *"System clock
-  synchronized: yes"*. Keep both machines NTP-synced.
+  synchronized: yes"*. Keep both machines NTP-synced. (This fixes WSJT-X **DT**, the time
+  offset — it has nothing to do with a **frequency** shift; see below.)
+
+### Sample rate — pin both ends to 48000
+
+A **frequency shift** on decoded signals is *not* a network-quality symptom (jitter/loss
+show up as dropouts and failed decodes, not a clean pitch offset, and bigger buffers do
+not fix it). It comes from the **audio sample clock**: WSJT-X on the workstation reads a
+different clock than the rig's USB CODEC, and the tunnel resamples between them. If either
+PipeWire graph rate-switches, the resampler can land on a wrong ratio and every audio
+frequency is scaled — a pitch shift in the waterfall.
+
+Pin **both** machines to one fixed rate so the graph never switches. Drop-in
+`~/.config/pipewire/pipewire.conf.d/10-rate.conf` (identical on workstation **and** rig host):
+
+```
+context.properties = {
+    default.clock.rate          = 48000
+    default.clock.allowed-rates = [ 48000 ]
+}
+```
+
+```bash
+# apply on each machine (rig host first, then workstation so the tunnel reconnects):
+systemctl --user restart pipewire.service pipewire-pulse.service wireplumber.service
+pw-metadata -n settings | grep -E "clock.rate|allowed"   # both → 48000 / [ 48000 ]
+```
+
+This removes rate-switch ratio errors. It does **not** remove the few-ppm crystal
+difference between the two clocks — `module-tunnel-source` adaptively resamples to track
+the rig host, which is correct. If a **constant Hz offset** remains across the whole band,
+it is the rig's reference oscillator (IC-7300 *Menu → Set → Function → REF Adjust*), not
+the audio path. If DF **drifts within a transmission**, that is residual clock tracking.
 
 ---
 
@@ -264,6 +296,7 @@ printf 'f\n' | nc -w3 brain.local 4532          # prints e.g. 18077000.000000
 | PipeWire daemon won't start after editing `context.objects` | A bad node spec is fatal to the whole daemon; `journalctl --user -u pipewire`, fix/remove the drop-in, `systemctl --user reset-failed pipewire`. |
 | `rig_rx`/`rig_tx` missing after rig-host reboot | Tunnels load only if the rig host's pulse server is reachable at the time; `systemctl --user restart pipewire-pulse` on the workstation to retry. |
 | CAT dead after touching the user manager | `sudo systemctl restart user@UID.service` can stop cwsd; `sudo systemctl restart cwsd`. |
+| Decoded signals at a shifted/drifting frequency | **Not** the network — it's the sample clock. Pin both ends to 48000 (see *Sample rate — pin both ends*). A constant whole-band Hz offset that survives pinning = rig REF Adjust, not the tunnel. Buffers (`latency_msec`) cure dropouts, not pitch. |
 
 ---
 
