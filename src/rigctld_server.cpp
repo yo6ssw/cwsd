@@ -227,12 +227,31 @@ bool rigctld_server::interpret_command(std::string &command, int client_fd) {
         rig_get_freq(rig, RIG_VFO_CURR, &freq);
         send_response_to_client(std::to_string(freq), client_fd);
     } else if (cmd == "s") {
-        split_t split = RIG_SPLIT_ON;
-        vfo_t txvfo = 0;
-        rig_get_split_vfo(rig, RIG_VFO_CURR, &split, &txvfo);
+        // Default to simplex: WSJT-X "Fake It" split refuses unless the rig reports
+        // simplex, and rig_get_split_vfo() fails on some backends (e.g. IC-7300),
+        // leaving the seed values — so don't trust it without checking the return.
+        split_t split = RIG_SPLIT_OFF;
+        vfo_t txvfo = RIG_VFO_A;
+        if (rig_get_split_vfo(rig, RIG_VFO_CURR, &split, &txvfo) != RIG_OK ||
+            txvfo == RIG_VFO_NONE) {
+            split = RIG_SPLIT_OFF;
+            txvfo = RIG_VFO_A;
+        }
+        // WSJT-X expects a concrete TX VFO; the IC-7300 backend hands back a VFO we
+        // don't render (-> "UNKNOWN"), so normalise anything but A/B/C to VFOA.
+        if (txvfo != RIG_VFO_A && txvfo != RIG_VFO_B && txvfo != RIG_VFO_C)
+            txvfo = RIG_VFO_A;
         std::stringstream ss;
         ss << split_to_string(split) << "\n" << vfo_to_string(txvfo);
         send_response_to_client(ss.str(), client_fd);
+    } else if (starts_with(cmd, "S ")) {
+        // set split: "S <0|1> <txvfo>". WSJT-X "Fake It" sets simplex; honor it on the
+        // rig and always ack — an unanswered set would stall the client.
+        auto pieces = split_string(cmd, " ");
+        split_t split = (pieces.size() > 1 && pieces[1] == "1") ? RIG_SPLIT_ON : RIG_SPLIT_OFF;
+        vfo_t txvfo = (pieces.size() > 2) ? vfo_from_string(pieces[2].c_str()) : RIG_VFO_A;
+        rig_set_split_vfo(rig, RIG_VFO_CURR, split, txvfo);
+        send_response_to_client("RPRT 0", client_fd);
     } else if (cmd == "t") {
         ptt_t ptt;
         rig_get_ptt(rig, RIG_VFO_CURR, &ptt);
