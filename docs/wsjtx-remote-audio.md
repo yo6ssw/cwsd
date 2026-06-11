@@ -436,13 +436,19 @@ ldconfig -p | grep libroc                                            # libroc pr
 >
 > **Changing rate or channel count needs PipeWire ≥1.6 on *both* ends — not just libroc 0.4.**
 > The wire encoding is set by the PipeWire roc *module*, not the library. Modules older than
-> ~1.6 (e.g. Ubuntu 25.10's **1.4.7**) import no `roc_context_register_encoding` and ignore
-> `audio.position`, so they are locked to ROC's built-in **L16 @ 44100 stereo** — you cannot
-> select **16 kHz** *or* **mono**. Only PipeWire ≥1.6 honors `audio.rate`/`audio.position`
-> (and registers a matching custom encoding). Both ends must agree, so the *oldest* roc
-> module in the path sets the ceiling. To drop bandwidth on an old end, the alternative is
-> building roc-toolkit from source and using the `roc-send`/`roc-recv` CLI (custom encodings),
-> bypassing the module.
+> 1.6 (e.g. Ubuntu 24.04's **1.0.x** and 25.10's **1.4.7**) import no
+> `roc_context_register_encoding` and ignore `audio.position`, so they are locked to ROC's
+> built-in **L16 @ 44100 stereo** — you cannot select **16 kHz** *or* **mono**. PipeWire ≥1.6
+> (Ubuntu 26.04) registers a matching custom encoding and honors both. Both ends must agree,
+> so the *oldest* roc module in the path sets the ceiling.
+>
+> **Arg vs prop gotcha (≥1.6):** `audio.position` is a top-level module **arg**, but
+> `audio.rate` is read from the node **props** (`sink.props`/`source.props`) — putting
+> `audio.rate` at the args level is silently ignored (node stays 44100). See the config below.
+
+This deployment runs **16 kHz mono** (both ends Ubuntu 26.04 / PipeWire 1.6.2): a custom L16
+16 kHz mono encoding, **~264 kbps** on the wire vs ~1.4 Mbps for stereo 44100 (≈5× less), and
+8 kHz Nyquist easily covers FT8/CW/SSB.
 
 ROC is a **sender → receiver push**, so each direction has its own sender, receiver, and
 UDP port (FEC off → one RTP port per direction, no repair port):
@@ -475,8 +481,9 @@ context.modules = [
         fec.code                   = disable
         sess.latency.msec          = 200
         roc.latency-tuner.profile  = intact
+        audio.position             = [ MONO ]
         source.name                = rig_rx_roc
-        source.props               = { node.description = "ROC rig RX" media.class = Audio/Source }
+        source.props               = { node.description = "ROC rig RX" media.class = Audio/Source audio.rate = 16000 }
     }
   }
   # TX: send WSJT-X output to the rig host  ->  WSJT-X Output = "ROC rig TX"
@@ -485,12 +492,16 @@ context.modules = [
         remote.ip          = 192.168.3.41
         remote.source.port = 10005
         fec.code           = disable
+        audio.position     = [ MONO ]
         sink.name          = rig_tx_roc
-        sink.props         = { node.description = "ROC rig TX" }
+        sink.props         = { node.description = "ROC rig TX" audio.rate = 16000 }
     }
   }
 ]
 ```
+
+(For built-in stereo 44100 — the only option on PipeWire <1.6 — drop the `audio.position`
+and `audio.rate` lines.)
 
 - `roc.latency-tuner.profile = intact` **disables clock-rate resampling** — that is what
   removes the pitch drift. The trade-off: with no rate-matching, the buffer is not refilled,
@@ -520,15 +531,16 @@ context.modules = [
         remote.ip          = 10.8.0.6
         remote.source.port = 10001
         fec.code           = disable
+        audio.position     = [ MONO ]
         sink.name          = rig_audio_send
-        sink.props         = { node.description = "rig audio -> ROC" }
+        sink.props         = { node.description = "rig audio -> ROC" audio.rate = 16000 }
     }
   }
   { name = libpipewire-module-loopback
     args = {
         node.description = "rig RX -> ROC sink"
         capture.props  = { node.target = "alsa_input.usb-Burr-Brown_from_TI_USB_Audio_CODEC-00.analog-stereo" }
-        playback.props = { node.target = "rig_audio_send" stream.dont-remix = true }
+        playback.props = { node.target = "rig_audio_send" }
     }
   }
   # TX: receive workstation audio and play it into the rig sink
@@ -539,19 +551,23 @@ context.modules = [
         fec.code                   = disable
         sess.latency.msec          = 200
         roc.latency-tuner.profile  = intact
+        audio.position             = [ MONO ]
         source.name                = rig_tx_in
-        source.props               = { node.description = "ROC TX from workstation" media.class = Audio/Source }
+        source.props               = { node.description = "ROC TX from workstation" media.class = Audio/Source audio.rate = 16000 }
     }
   }
   { name = libpipewire-module-loopback
     args = {
         node.description = "ROC TX -> rig sink"
         capture.props  = { node.target = "rig_tx_in" }
-        playback.props = { node.target = "alsa_output.usb-Burr-Brown_from_TI_USB_Audio_CODEC-00.analog-stereo" stream.dont-remix = true }
+        playback.props = { node.target = "alsa_output.usb-Burr-Brown_from_TI_USB_Audio_CODEC-00.analog-stereo" }
     }
   }
 ]
 ```
+
+(The loopbacks omit `stream.dont-remix` so they down/up-mix the rig's stereo 48 kHz to the
+mono 16 kHz ROC nodes. For built-in stereo 44100, drop `audio.position`/`audio.rate` here too.)
 
 ### 6.4 Apply and verify
 
