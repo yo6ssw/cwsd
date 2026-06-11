@@ -402,8 +402,9 @@ Pinning the rate (above) does not help — the error is in clock *tracking*. The
 carry RX audio with **[ROC](https://roc-streaming.org/)** (`roc-toolkit`), which is built
 for real-time audio over lossy/jittery networks and does proper clock-drift recovery.
 
-This section replaces **only the RX path** (rig → WSJT-X). CAT stays on rigctld; TX still
-uses the Pulse `rig_tx` tunnel (see *TX* note at the end).
+This section replaces **both audio paths** (RX rig → WSJT-X, and TX WSJT-X → rig) with ROC.
+CAT/PTT stays on rigctld. RX is the path that *needs* ROC (decode accuracy); TX benefits too
+but has a latency caveat (see *6.5*).
 
 ### Measured, on this OpenVPN link (~55 ms RTT)
 
@@ -432,23 +433,30 @@ ldconfig -p | grep libroc                                            # libroc pr
 > `intact` tuner. Matching libroc versions on both ends would let you re-enable the control
 > port for smoother sync, but `intact` is what made it rock-solid here.
 
-ROC is a **sender → receiver push**: the **rig host sends** to the **workstation**. The rig
-host must be able to reach the workstation's address — here the OpenVPN client IP
-**`10.8.0.6`**. RX uses one UDP port, **10001** (RTP); with FEC off the repair port is unused.
+ROC is a **sender → receiver push**, so each direction has its own sender, receiver, and
+UDP port (FEC off → one RTP port per direction, no repair port):
+
+| Direction | Sender → Receiver | Port | Receiver must accept from |
+|-----------|-------------------|------|---------------------------|
+| **RX** (rig audio → WSJT-X) | rig host → workstation (`10.8.0.6`) | **10001** | rig host `192.168.3.41` |
+| **TX** (WSJT-X → rig) | workstation → rig host (`192.168.3.41`) | **10005** | workstation `10.8.0.6` |
 
 ```bash
-# from the rig host, confirm it can reach the workstation:
-ping -c2 10.8.0.6
-# if the workstation runs a firewall, allow the ROC port from the rig host:
-sudo ufw allow proto udp from 192.168.3.41 to any port 10001 comment "ROC rig audio"
+# rig host -> workstation reachability, and (if the rig host runs ufw) open the TX port:
+ping -c2 192.168.3.41                                                    # from workstation
+sudo ufw allow proto udp from 10.8.0.6 to any port 10005 comment "ROC rig TX"   # on rig host
+# workstation: if it runs a firewall, open the RX port from the rig host:
+sudo ufw allow proto udp from 192.168.3.41 to any port 10001 comment "ROC rig RX"
 ```
 
-### 6.2 Receiver — workstation
+### 6.2 Workstation drop-in
 
-Drop-in `~/.config/pipewire/pipewire.conf.d/40-roc-rig.conf`:
+`~/.config/pipewire/pipewire.conf.d/40-roc-rig.conf` — a ROC **source** for RX (WSJT-X
+Input) and a ROC **sink** for TX (WSJT-X Output):
 
 ```
 context.modules = [
+  # RX: receive rig audio  ->  WSJT-X Input = "ROC rig RX"
   { name = libpipewire-module-roc-source
     args = {
         local.ip                   = 0.0.0.0
@@ -458,6 +466,16 @@ context.modules = [
         roc.latency-tuner.profile  = intact
         source.name                = rig_rx_roc
         source.props               = { node.description = "ROC rig RX" media.class = Audio/Source }
+    }
+  }
+  # TX: send WSJT-X output to the rig host  ->  WSJT-X Output = "ROC rig TX"
+  { name = libpipewire-module-roc-sink
+    args = {
+        remote.ip          = 192.168.3.41
+        remote.source.port = 10005
+        fec.code           = disable
+        sink.name          = rig_tx_roc
+        sink.props         = { node.description = "ROC rig TX" }
     }
   }
 ]
@@ -473,13 +491,16 @@ context.modules = [
   forcing 48000 crashes the daemon. The stream runs at 44100 and PipeWire resamples to
   WSJT-X's 48000 with an exact, clock-clean ratio.
 
-### 6.3 Sender — rig host
+### 6.3 Rig-host drop-in
 
-Drop-in `~/.config/pipewire/pipewire.conf.d/40-roc-rig.conf` (a loopback feeds the rig
-capture into the ROC sink):
+`~/.config/pipewire/pipewire.conf.d/40-roc-rig.conf` — mirror of the workstation: a ROC
+**sink** + loopback for RX (rig capture → network), and a ROC **source** + loopback for TX
+(network → rig playback). A roc-source defaults to a *playback* stream, so each side that
+must route to/from a specific device uses a `libpipewire-module-loopback`:
 
 ```
 context.modules = [
+  # RX: capture rig audio and send it to the workstation
   { name = libpipewire-module-roc-sink
     args = {
         remote.ip          = 10.8.0.6
@@ -496,6 +517,25 @@ context.modules = [
         playback.props = { node.target = "rig_audio_send" stream.dont-remix = true }
     }
   }
+  # TX: receive workstation audio and play it into the rig sink
+  { name = libpipewire-module-roc-source
+    args = {
+        local.ip                   = 0.0.0.0
+        local.source.port          = 10005
+        fec.code                   = disable
+        sess.latency.msec          = 300
+        roc.latency-tuner.profile  = intact
+        source.name                = rig_tx_in
+        source.props               = { node.description = "ROC TX from workstation" media.class = Audio/Source }
+    }
+  }
+  { name = libpipewire-module-loopback
+    args = {
+        node.description = "ROC TX -> rig sink"
+        capture.props  = { node.target = "rig_tx_in" }
+        playback.props = { node.target = "alsa_output.usb-Burr-Brown_from_TI_USB_Audio_CODEC-00.analog-stereo" stream.dont-remix = true }
+    }
+  }
 ]
 ```
 
@@ -508,27 +548,36 @@ systemctl --user restart pipewire.service pipewire-pulse.service wireplumber.ser
 # rig host: the ROC sink is RUNNING (loopback feeding it from the rig source)
 pactl list short sinks | grep rig_audio_send
 
-# workstation: the source exists, and carries real (non-silent) rig audio
+# workstation: RX source carries real rig audio; TX sink exists for WSJT-X Output
 pactl list short sources | grep rig_rx_roc
+pactl list short sinks   | grep rig_tx_roc
 timeout 4 parecord -d rig_rx_roc --channels=1 --format=s16le --rate=48000 --raw /tmp/r.raw
 python3 -c "import numpy as np;d=np.fromfile('/tmp/r.raw','<i2');print('peak',int(abs(d).max()))"
+
+# TX end-to-end: play a tone into rig_tx_roc here, capture rig_tx_in on the rig host
+# (rig host) timeout 6 parecord -d rig_tx_in --raw /tmp/tx.raw &
+paplay --device=rig_tx_roc /path/to/1kHz.wav        # rig host /tmp/tx.raw peak should be > 0
 ```
 
-Then in **WSJT-X → Settings → Audio → Soundcard → Input**, select **"ROC rig RX"**
-(`rig_rx_roc`) instead of the Pulse tunnel. A steady reference (beacon/WWV/carrier) should
-now hold a constant DF. The Pulse `rig_rx` tunnel can be left loaded as a fallback or
-removed from `30-rig-tunnel.conf`.
+Then in **WSJT-X → Settings → Audio → Soundcard**:
+- **Input** = **"ROC rig RX"** (`rig_rx_roc`) — a steady reference (beacon/WWV/carrier)
+  should now hold a constant DF.
+- **Output** = **"ROC rig TX"** (`rig_tx_roc`).
 
-### TX (still on the Pulse tunnel)
+The Pulse `rig_rx`/`rig_tx` tunnels can be left loaded as a fallback or removed from
+`30-rig-tunnel.conf`.
 
-WSJT-X transmit still goes over the Pulse `rig_tx` sink. The same clock skew applies to the
-tones you transmit, but as a *fixed* sub-Hz offset it is harmless. To make TX ROC too,
-mirror the above in the other direction: a `libpipewire-module-roc-sink` on the workstation
-fed by WSJT-X's output, and a `libpipewire-module-roc-source` (also `intact`) on the rig
-host whose output is looped into the rig's `alsa_output` sink — on a second port (e.g.
-10005), with the rig host now the receiver.
+### 6.5 TX latency / PTT-tail caveat
 
-### Teardown (revert RX to the Pulse tunnel)
+PTT is keyed over CAT (rigctld), which is **instant**, but the TX audio crosses the ROC
+buffer + network (~300 ms + RTT). So WSJT-X drops PTT the moment it *finishes* playing,
+while the last fraction of a second of audio is still in flight — the tail of the
+transmission can be clipped. FT8 usually tolerates this; if the far end reports your last
+symbols missing, **lower the TX `sess.latency.msec`** (on the rig host's `rig_tx_in`
+source — e.g. 150) at the cost of more underrun risk, or add a small PTT tail on the rig.
+The clock skew on transmitted tones is a fixed sub-Hz offset (negligible).
+
+### Teardown (revert to the Pulse tunnel)
 
 ```bash
 rm ~/.config/pipewire/pipewire.conf.d/40-roc-rig.conf      # on BOTH machines
