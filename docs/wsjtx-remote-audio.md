@@ -462,7 +462,7 @@ context.modules = [
         local.ip                   = 0.0.0.0
         local.source.port          = 10001
         fec.code                   = disable
-        sess.latency.msec          = 300
+        sess.latency.msec          = 200
         roc.latency-tuner.profile  = intact
         source.name                = rig_rx_roc
         source.props               = { node.description = "ROC rig RX" media.class = Audio/Source }
@@ -482,9 +482,12 @@ context.modules = [
 ```
 
 - `roc.latency-tuner.profile = intact` **disables clock-rate resampling** — that is what
-  removes the pitch drift. The trade-off: the jitter buffer slowly drifts at the raw clock
-  difference (~30 ppm), so once every few **hours** it overflows and produces one brief
-  click. Harmless for FT8; the alternative (`gradual`/`responsive`) wobbles the pitch.
+  removes the pitch drift. The trade-off: with no rate-matching, the buffer is not refilled,
+  so it must be **deep enough to ride out network jitter** — that sets the latency floor.
+  On this link (~50 ms RTT, 7 ms mdev) `sess.latency.msec = 200` gives ~225 ms one-way
+  latency with only occasional sub-40 ms gaps; **80 ms underran badly (~19% silence)**.
+  Lower latency needs the `gradual`/`responsive` tuner, which rate-matches but **wobbles
+  the pitch** — unacceptable for WSJT-X. So `intact` trades latency for frequency stability.
 - `media.class = Audio/Source` is required or the node loads as a playback stream you
   can't record from.
 - Do **not** set `audio.rate` — libroc 0.3 only supports its built-in 44100 PCM encoding;
@@ -523,7 +526,7 @@ context.modules = [
         local.ip                   = 0.0.0.0
         local.source.port          = 10005
         fec.code                   = disable
-        sess.latency.msec          = 300
+        sess.latency.msec          = 200
         roc.latency-tuner.profile  = intact
         source.name                = rig_tx_in
         source.props               = { node.description = "ROC TX from workstation" media.class = Audio/Source }
@@ -570,7 +573,7 @@ The Pulse `rig_rx`/`rig_tx` tunnels can be left loaded as a fallback or removed 
 ### 6.5 TX latency / PTT-tail caveat
 
 PTT is keyed over CAT (rigctld), which is **instant**, but the TX audio crosses the ROC
-buffer + network (~300 ms + RTT). So WSJT-X drops PTT the moment it *finishes* playing,
+buffer + network (~200 ms + RTT). So WSJT-X drops PTT the moment it *finishes* playing,
 while the last fraction of a second of audio is still in flight — the tail of the
 transmission can be clipped. FT8 usually tolerates this; if the far end reports your last
 symbols missing, **lower the TX `sess.latency.msec`** (on the rig host's `rig_tx_in`
