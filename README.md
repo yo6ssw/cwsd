@@ -26,6 +26,11 @@ in the config and listens on its own port.
 > front-ends. The audio stream has no configured target; clients subscribe (and NAT-punch)
 > by sending any datagram to its port, then must send a periodic keepalive.
 
+> **Running WSJT-X (or other soundcard apps) from another machine?** cwsd handles
+> CAT/PTT via `rigctld`, but its audio stream is RX-only. For full-duplex remote audio
+> (RX **and** TX) over the LAN, see [`docs/wsjtx-remote-audio.md`](docs/wsjtx-remote-audio.md),
+> a step-by-step runbook for bridging the rig's USB soundcard with PipeWire-Pulse.
+
 ## Instructions:
 
 
