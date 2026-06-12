@@ -482,7 +482,7 @@ context.modules = [
         local.ip                   = 0.0.0.0
         local.source.port          = 10001
         fec.code                   = disable
-        sess.latency.msec          = 100
+        sess.latency.msec          = 150
         roc.latency-tuner.profile  = intact
         audio.position             = [ MONO ]
         source.name                = rig_rx_roc
@@ -511,8 +511,9 @@ and `audio.rate` lines.)
   so `sess.latency.msec` must be **deep enough to ride out network jitter** — that sets the
   latency floor, and the floor tracks the link. On this **WiFi LAN** (jitter mostly ~4 ms
   but bursting to ~50 ms) measured underruns over 25 s at 16 kHz mono were: **60 ms → 2.2%
-  silence**, **100 ms → 0.3%** (a few sub-30 ms gaps, negligible for FT8), **200 ms → ~0**.
-  So `100` is a sensible floor here; a busier/remoter link (or wired Ethernet) shifts it.
+  silence**, **100 ms → 0.3%** (a few sub-30 ms gaps), **150 ms → 0 gaps**, **200 ms → ~0**.
+  `100` is about the floor; we run **`150`** for a little margin against jitter bursts
+  (clean in testing). A busier/remoter link (or wired Ethernet) shifts the sweet spot.
   Going lower needs the `gradual`/`responsive` tuner, which rate-matches but **wobbles the
   pitch** — unacceptable for WSJT-X. So `intact` trades latency for frequency stability.
 - `media.class = Audio/Source` is required or the node loads as a playback stream you
@@ -554,7 +555,7 @@ context.modules = [
         local.ip                   = 0.0.0.0
         local.source.port          = 10005
         fec.code                   = disable
-        sess.latency.msec          = 100
+        sess.latency.msec          = 150
         roc.latency-tuner.profile  = intact
         audio.position             = [ MONO ]
         source.name                = rig_tx_in
