@@ -12,9 +12,10 @@ audio:
   enabled: false
   device: default          # ALSA capture device, e.g. plughw:CARD=CODEC,DEV=0
   port: 7355               # UDP port to bind; clients subscribe by sending here
-  sample_rate: 16000       # opus rates only: 8000/12000/16000/24000/48000
+  sample_rate: 8000        # opus rates only: 8000/12000/16000/24000/48000
   channels: 1
-  bitrate: 32000           # opus target bitrate in bits/s
+  bitrate: 96000           # opus target bitrate in bits/s (low rates can add spurious
+                           # CW skimmer channels on strong/noisy audio)
   frame_ms: 20             # opus frame size: 2.5/5/10/20/40/60
   client_timeout_ms: 10000 # drop subscribers silent longer than this
 remote_key:                # real paddle keying over the internet (see README/CLAUDE.md)

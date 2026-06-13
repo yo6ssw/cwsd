@@ -14,11 +14,14 @@ struct audio_stream_config {
     bool enabled = false;
     std::string device = "default";   // ALSA capture device (e.g. plughw:CARD=CODEC,DEV=0)
     uint16_t port = 0;                // UDP port to bind; clients subscribe by sending here
-    uint32_t sample_rate = 16000;     // valid opus rate (8/12/16/24/48 kHz); 16 kHz
-                                      // covers CW/SSB audio at a third of 48 kHz's
+    uint32_t sample_rate = 8000;      // valid opus rate (8/12/16/24/48 kHz); 8 kHz
+                                      // (4 kHz Nyquist) covers CW audio at minimal
                                       // bandwidth + CPU
     int channels = 1;
-    int bitrate = 32000;              // opus target bitrate in bits/s
+    int bitrate = 96000;              // opus target bitrate in bits/s. Low rates spread
+                                      // quantization noise that a multi-channel CW
+                                      // decoder picks up as spurious signals on
+                                      // strong/noisy audio; a high rate keeps it clean.
     int frame_ms = 20;                // opus frame size in ms (2.5/5/10/20/40/60)
     int client_timeout_ms = 10000;    // drop clients that have been silent this long
 };
