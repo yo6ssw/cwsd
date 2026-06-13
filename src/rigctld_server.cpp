@@ -297,6 +297,26 @@ bool rigctld_server::interpret_command(std::string &command, int client_fd) {
         else
             resp = std::to_string(val.i);
         send_response_to_client(resp, client_fd);
+    } else if (starts_with(cmd, "L ")) {
+        // set level: "L <LEVEL> <value>", e.g. "L AGC 0" to disable AGC, "L AGC 5"
+        // (RIG_AGC_MEDIUM) to re-enable it. Mirrors the "l " getter above:
+        // rig_parse_level maps the name to the level token; float levels take a
+        // float value, int levels (AGC, ATT, ...) an int — as real rigctld does.
+        auto pieces = split_string(cmd, " ");
+        setting_t level = rig_parse_level(pieces.size() > 1 ? pieces[1].c_str() : "");
+        value_t val{};
+        if (RIG_LEVEL_IS_FLOAT(level))
+            val.f = pieces.size() > 2 ? std::stof(pieces[2]) : 0.0f;
+        else
+            val.i = pieces.size() > 2 ? std::stoi(pieces[2]) : 0;
+        // The IC-7300 can't switch AGC fully OFF over CAT (only FAST/MID/SLOW), so
+        // map a disable request to FAST — the least level-flattening setting, which
+        // is what a CW skimmer wants. The model is known here (not to a netrigctl
+        // client like xlog2), so the rig-specific quirk lives in cwsd.
+        if (level == RIG_LEVEL_AGC && val.i == RIG_AGC_OFF && rig_model == RIG_MODEL_IC7300)
+            val.i = RIG_AGC_FAST;
+        int rc = rig_set_level(rig, RIG_VFO_CURR, level, val);
+        send_response_to_client("RPRT " + std::to_string(rc), client_fd);
     } else if (cmd == "q" || cmd == "Q") {
         LOG(INFO) << "[c:" << client_fd << "] quit.";
         // Real rigctld replies "RPRT 0" to the quit command. Hamlib's

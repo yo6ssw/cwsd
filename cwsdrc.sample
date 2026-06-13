@@ -12,7 +12,7 @@ audio:
   enabled: false
   device: default          # ALSA capture device, e.g. plughw:CARD=CODEC,DEV=0
   port: 7355               # UDP port to bind; clients subscribe by sending here
-  sample_rate: 48000       # opus rates only: 8000/12000/16000/24000/48000
+  sample_rate: 16000       # opus rates only: 8000/12000/16000/24000/48000
   channels: 1
   bitrate: 32000           # opus target bitrate in bits/s
   frame_ms: 20             # opus frame size: 2.5/5/10/20/40/60

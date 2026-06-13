@@ -14,7 +14,9 @@ struct audio_stream_config {
     bool enabled = false;
     std::string device = "default";   // ALSA capture device (e.g. plughw:CARD=CODEC,DEV=0)
     uint16_t port = 0;                // UDP port to bind; clients subscribe by sending here
-    uint32_t sample_rate = 48000;     // must be a valid opus rate (8/12/16/24/48 kHz)
+    uint32_t sample_rate = 16000;     // valid opus rate (8/12/16/24/48 kHz); 16 kHz
+                                      // covers CW/SSB audio at a third of 48 kHz's
+                                      // bandwidth + CPU
     int channels = 1;
     int bitrate = 32000;              // opus target bitrate in bits/s
     int frame_ms = 20;                // opus frame size in ms (2.5/5/10/20/40/60)
