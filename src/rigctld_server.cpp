@@ -504,8 +504,21 @@ bool rigctld_server::read_from_client(rigctld_client &client) {
         size_t pos;
         while ((pos = client.read_buffer.find('\n')) != std::string::npos) {
             auto cmd = client.read_buffer.substr(0, pos);
-            if (!interpret_command(cmd, client.fd)) {
-                return false;
+            // A malformed argument must never take down the whole service. The
+            // parsers below lean on std::stoi/std::stod, which throw on garbage
+            // (e.g. "F abc", or the VFO-prefixed form "M VFOA CW 1200" that a
+            // vfo-mode rigctld client sends — our std::stoi would hit "CW").
+            // An uncaught throw unwinds out of work() and kills the worker
+            // thread, dropping CAT for every connected client. Contain it to the
+            // one bad command and answer with an error, as real rigctld does.
+            try {
+                if (!interpret_command(cmd, client.fd)) {
+                    return false;
+                }
+            } catch (const std::exception &e) {
+                LOG(ERROR) << "[c:" << client.fd << "] command [" << cmd
+                           << "] failed: " << e.what();
+                send_response_to_client("RPRT -1", client.fd);
             }
             client.read_buffer.erase(0, cmd.size() + 1);
         }
