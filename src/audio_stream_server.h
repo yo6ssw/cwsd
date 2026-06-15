@@ -24,6 +24,10 @@ struct audio_stream_config {
                                       // strong/noisy audio; a high rate keeps it clean.
     int frame_ms = 20;                // opus frame size in ms (2.5/5/10/20/40/60)
     int client_timeout_ms = 10000;    // drop clients that have been silent this long
+    int fec_loss_perc = 10;           // expected packet loss %, drives Opus in-band FEC
+                                      // (LBRR): the encoder embeds a low-bitrate copy of
+                                      // the previous frame so a client can recover a
+                                      // single lost packet from the next one. 0 disables.
 };
 
 // Forward declarations so the alsa/opus headers stay confined to the .cpp.

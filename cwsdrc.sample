@@ -18,6 +18,8 @@ audio:
                            # CW skimmer channels on strong/noisy audio)
   frame_ms: 20             # opus frame size: 2.5/5/10/20/40/60
   client_timeout_ms: 10000 # drop subscribers silent longer than this
+  fec_loss_perc: 10        # expected packet loss %; drives Opus in-band FEC so a
+                           # client can recover a lost frame from the next packet (0 off)
 remote_key:                # real paddle keying over the internet (see README/CLAUDE.md)
   enabled: false
   port: 6790               # UDP port to bind for the timestamped edge stream

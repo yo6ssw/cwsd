@@ -43,6 +43,14 @@ audio_stream_server::audio_stream_server(audio_stream_config cfg)
         throw std::runtime_error(std::string("opus_encoder_create failed: ") + opus_strerror(err));
     }
     opus_encoder_ctl(encoder, OPUS_SET_BITRATE(config.bitrate));
+    // In-band FEC (LBRR): embed a low-bitrate copy of the previous frame in each
+    // packet so a client that sees a sequence gap can reconstruct one lost frame
+    // from the next packet (opus_decode with decode_fec=1). The encoder only spends
+    // bits on FEC when it expects loss, so the loss-percent estimate must be > 0.
+    if (config.fec_loss_perc > 0) {
+        opus_encoder_ctl(encoder, OPUS_SET_INBAND_FEC(1));
+        opus_encoder_ctl(encoder, OPUS_SET_PACKET_LOSS_PERC(config.fec_loss_perc));
+    }
 
     if (!open_socket()) {
         throw std::runtime_error("audio: failed to bind UDP socket on port "
@@ -50,7 +58,9 @@ audio_stream_server::audio_stream_server(audio_stream_config cfg)
     }
 
     LOG(INFO) << "audio streaming " << config.sample_rate << "Hz/" << config.channels
-              << "ch opus@" << config.bitrate << "bps to subscribers on port " << config.port;
+              << "ch opus@" << config.bitrate << "bps"
+              << (config.fec_loss_perc > 0 ? " +FEC" : "")
+              << " to subscribers on port " << config.port;
 
     is_running = true;
     worker_thread = std::thread(&audio_stream_server::work, this);

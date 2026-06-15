@@ -139,6 +139,9 @@ cwsd_config read_config(std::string path) {
             if (audio_node.contains("client_timeout_ms")) {
                 cfg.audio.client_timeout_ms = audio_node["client_timeout_ms"].get_value<int>();
             }
+            if (audio_node.contains("fec_loss_perc")) {
+                cfg.audio.fec_loss_perc = audio_node["fec_loss_perc"].get_value<int>();
+            }
         }
     }
 
