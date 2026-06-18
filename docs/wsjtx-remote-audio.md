@@ -219,6 +219,35 @@ WSJT-X lists devices by their PulseAudio **description**, so select:
 These are the only "Tunnel to …brain.local…" entries. Channels `Mono` is fine (WSJT-X
 uses the left channel). Click **OK**.
 
+### Pin the audio buffer latency — or WSJT-X DT sits at +2 s
+
+A network audio source handed to a generic client gets PipeWire's **pulse-compat default
+buffer of ~2.0 s** (`node.latency = 88200/44100`), *not* a low-latency one — and WSJT-X
+(Qt → PulseAudio) takes that default unless told otherwise. WSJT-X tolerates a **constant**
+latency (it just appears as a DT offset) but the FT8 decode window is only ~±2.5 s, so a 2 s
+buffer eats almost the whole margin and pushes already-offset stations out of the window.
+What WSJT-X needs is latency that is **constant and bounded**, not necessarily small — NTP
+fixes the *clock*, this pins the *channel buffer*.
+
+Pin WSJT-X's buffer to a known value with `PULSE_LATENCY_MSEC` in its launch environment:
+
+```bash
+PULSE_LATENCY_MSEC=150 wsjtx          # node.latency drops 88200/44100 (2 s) -> 7200/48000 (150 ms)
+```
+
+To make it permanent on **both** launch paths:
+- **App menu:** a user override `~/.local/share/applications/wsjtx.desktop` (shadows the deb's
+  `/usr/share/applications` entry, survives package upgrades) with
+  `Exec=env PULSE_LATENCY_MSEC=150 wsjtx`.
+- **Terminal:** an alias — `alias wsjtx='PULSE_LATENCY_MSEC=150 command wsjtx'` in `~/.zshrc`.
+
+150 ms matches the ROC channel's fixed buffer (`roc.latency-tuner.profile=intact`,
+`sess.latency.msec=150`), so the total RX path is a constant ~300 ms → DT shifts a harmless
++0.3 s and **holds** (verify on a steady carrier/beacon: DT should not walk over minutes). Do
+**not** chase lower latency with ROC's `gradual`/`responsive` tuner — that rate-matches but
+wobbles the pitch, which hurts decoding more than a slightly looser, *stable* latency. For
+WSJT-X, frequency stability > latency tightness.
+
 ### Rig front-panel settings (IC-7300, for FT8/digital)
 - Mode **USB-D** (data) on the FT8 frequency (WSJT-X also sets it if Mode = `Data/Pkt`).
 - Menu **Set → Connectors**: `DATA OFF/DATA MOD = USB`, `USB MOD Level` ~30–50%, set
@@ -305,6 +334,7 @@ printf 'f\n' | nc -w3 brain.local 4532          # prints e.g. 18077000.000000
 | Only "Dummy Output", no rig card | User manager lacks `audio` group → `usermod -aG audio` then `systemctl restart user@UID.service`. Verify with `grep ^Groups: /proc/$(pgrep -u <user> -x systemd)/status` (need gid 29). |
 | `Cannot get card index for 0` / `capture open failed` | Use `plughw:0,0`, not `hw:0`. Also a symptom of the missing `audio` group. |
 | `pactl` over ssh: `Connection refused` | Export `XDG_RUNTIME_DIR=/run/user/UID` and `DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/UID/bus`. |
+| Remote audio lags ~2 s / WSJT-X DT stuck near +2 s | Not the network — the client took PipeWire's pulse-compat **default ~2 s buffer** (`node.latency = 88200/44100`). Pin it: launch with `PULSE_LATENCY_MSEC=150` (desktop override + shell alias). See *Pin the audio buffer latency*. Check a reader's buffer with `pactl list source-outputs \| grep node.latency`. |
 | PipeWire daemon won't start after editing `context.objects` | A bad node spec is fatal to the whole daemon; `journalctl --user -u pipewire`, fix/remove the drop-in, `systemctl --user reset-failed pipewire`. |
 | `rig_rx`/`rig_tx` missing after rig-host reboot | Tunnels load only if the rig host's pulse server is reachable at the time; `systemctl --user restart pipewire-pulse` on the workstation to retry. |
 | CAT dead after touching the user manager | `sudo systemctl restart user@UID.service` can stop cwsd; `sudo systemctl restart cwsd`. |
