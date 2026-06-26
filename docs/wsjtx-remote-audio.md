@@ -219,6 +219,10 @@ WSJT-X lists devices by their PulseAudio **description**, so select:
 These are the only "Tunnel to …brain.local…" entries. Channels `Mono` is fine (WSJT-X
 uses the left channel). Click **OK**.
 
+> **If you also set up ROC (Part 6), select the `ROC rig RX`/`ROC rig TX` pair instead** —
+> not these Pulse "Tunnel to …" entries. ROC is frequency-stable on LAN *and* WAN; the Pulse
+> tunnel is the LAN-only fallback. See *Part 6.4 → Two entries in the dropdown*.
+
 ### Pin the audio buffer latency — or WSJT-X DT sits at +2 s
 
 A network audio source handed to a generic client gets PipeWire's **pulse-compat default
@@ -240,6 +244,36 @@ To make it permanent on **both** launch paths:
   `/usr/share/applications` entry, survives package upgrades) with
   `Exec=env PULSE_LATENCY_MSEC=150 wsjtx`.
 - **Terminal:** an alias — `alias wsjtx='PULSE_LATENCY_MSEC=150 command wsjtx'` in `~/.zshrc`.
+
+> **The two methods above can silently fail to apply — use a PATH wrapper instead.** Symptom:
+> WSJT-X *still* shows ~2 s latency on a network input even with the `.desktop` override and the
+> alias in place (meanwhile a low-latency client like `rig_monitor.py`, which sets the buffer
+> itself, is fine). Two gaps:
+> - The **alias only affects interactive shells** — it does nothing for app-menu launches.
+> - On GNOME, **app-grid launches use the systemd user-session PATH, which omits `~/.local/bin`**,
+>   and may launch a stale/cached `.desktop` (the deb's, with no env) rather than your override —
+>   so the inline `env` never runs.
+>
+> Confirm the buffer a running WSJT-X actually got (while it captures the network source):
+> ```bash
+> pactl list source-outputs | grep -E "application.name|node.latency"
+> # 7200/48000 = 150 ms (good).  96000/48000 = 2 s (the default bit you).
+> ```
+> Robust fix — a wrapper that injects the env on **every** launch path (terminal *and* app menu),
+> independent of which `.desktop` fires or how the shell is started:
+> ```sh
+> # ~/.local/bin/wsjtx   (chmod +x; ~/.local/bin is ahead of /usr/bin on PATH)
+> #!/bin/sh
+> exec env PULSE_LATENCY_MSEC="${PULSE_LATENCY_MSEC:-150}" /usr/bin/wsjtx "$@"
+> ```
+> Then make sure graphical launches see it too — GNOME's app grid uses the systemd user PATH,
+> which excludes `~/.local/bin` by default. Add it back with a drop-in (takes effect next login):
+> ```ini
+> # ~/.config/environment.d/10-local-bin.conf
+> PATH=/home/<user>/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/snap/bin
+> ```
+> Now any `wsjtx` (app menu or terminal) resolves to the wrapper and gets the 150 ms buffer. The
+> alias/`.desktop` env become redundant-but-harmless. Verify with the `pactl` check above.
 
 150 ms matches the ROC channel's fixed buffer (`roc.latency-tuner.profile=intact`,
 `sess.latency.msec=150`), so the total RX path is a constant ~300 ms → DT shifts a harmless
@@ -334,7 +368,8 @@ printf 'f\n' | nc -w3 brain.local 4532          # prints e.g. 18077000.000000
 | Only "Dummy Output", no rig card | User manager lacks `audio` group → `usermod -aG audio` then `systemctl restart user@UID.service`. Verify with `grep ^Groups: /proc/$(pgrep -u <user> -x systemd)/status` (need gid 29). |
 | `Cannot get card index for 0` / `capture open failed` | Use `plughw:0,0`, not `hw:0`. Also a symptom of the missing `audio` group. |
 | `pactl` over ssh: `Connection refused` | Export `XDG_RUNTIME_DIR=/run/user/UID` and `DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/UID/bus`. |
-| Remote audio lags ~2 s / WSJT-X DT stuck near +2 s | Not the network — the client took PipeWire's pulse-compat **default ~2 s buffer** (`node.latency = 88200/44100`). Pin it: launch with `PULSE_LATENCY_MSEC=150` (desktop override + shell alias). See *Pin the audio buffer latency*. Check a reader's buffer with `pactl list source-outputs \| grep node.latency`. |
+| Remote audio lags ~2 s / WSJT-X DT stuck near +2 s | Not the network — the client took PipeWire's pulse-compat **default ~2 s buffer** (`node.latency = 88200/44100` ≈ `96000/48000`). Pin it with `PULSE_LATENCY_MSEC=150`. Check a reader's buffer: `pactl list source-outputs \| grep node.latency` (want `7200/48000`). See *Pin the audio buffer latency*. |
+| Latency *still* ~2 s after setting `PULSE_LATENCY_MSEC` (override + alias in place) | The env isn't reaching WSJT-X on the launch path you use. The **alias only covers interactive shells**; on **GNOME** the app grid uses the systemd user PATH (no `~/.local/bin`) and may launch a stale/cached `.desktop` without the env. Fix with a PATH **wrapper** `~/.local/bin/wsjtx` (`exec env PULSE_LATENCY_MSEC=150 /usr/bin/wsjtx "$@"`) **and** add `~/.local/bin` to the user session via `~/.config/environment.d/10-local-bin.conf` (re-login). Then *any* launch hits the wrapper. See *Pin the audio buffer latency → PATH wrapper*. |
 | PipeWire daemon won't start after editing `context.objects` | A bad node spec is fatal to the whole daemon; `journalctl --user -u pipewire`, fix/remove the drop-in, `systemctl --user reset-failed pipewire`. |
 | `rig_rx`/`rig_tx` missing after rig-host reboot | Tunnels load only if the rig host's pulse server is reachable at the time; `systemctl --user restart pipewire-pulse` on the workstation to retry. |
 | CAT dead after touching the user manager | `sudo systemctl restart user@UID.service` can stop cwsd; `sudo systemctl restart cwsd`. |
@@ -344,9 +379,11 @@ printf 'f\n' | nc -w3 brain.local 4532          # prints e.g. 18077000.000000
 | ROC: `no codec available for fec scheme 'rs8m'` (daemon exits 234) | The packaged `libroc` was built without FEC. Set `fec.code = disable` on both ends (plain RTP, source port only). |
 | ROC source loads but isn't recordable (shows `Stream/Output/Audio`) | Add `media.class = Audio/Source` to the module's `source.props`. |
 | ROC: `failed to select packet_encoding matching frame_encoding` (daemon exits 234) | libroc 0.3 (Ubuntu 24.04) only supports its built-in 44100 PCM encoding — do **not** set `audio.rate` on the ROC sink/source; let it run at 44100 (PipeWire resamples to 48000 locally, exact ratio). |
-| ROC: no audio at all on `rig_rx_roc` after a network change | ROC pushes to a **fixed receiver IP**. If the workstation's address changes (VPN drops → LAN, or a new DHCP/VPN lease), the rig host's RX `remote.ip` is stale and packets go nowhere. Verify on the rig host (`tcpdump -ni any 'udp and dst port 10001'` shows it sending) and on the workstation (`tcpdump` shows **nothing** arriving). Fix: set the rig host's `remote.ip` to the workstation's current address and restart PipeWire. |
-| ROC: RX works but **TX is silent** (`rig_tx_in` peak 0 on rig host) | The rig host's **ufw rule for the TX port (10005) allows only the workstation's old source IP**. TX packets leave the workstation (`tcpdump … dst port 10005` confirms) but ufw drops them. Fix: `sudo ufw allow proto udp from <workstation current IP> to any port 10005`. Both ROC directions break on a workstation IP change — RX via stale `remote.ip`, TX via the stale ufw source rule. |
+| ROC: no audio at all on `rig_rx_roc` after a network change | ROC pushes to a **fixed receiver IP**. If the workstation's address changes (VPN drops → LAN, or a new DHCP/VPN lease), the rig host's RX `remote.ip` is stale and packets go nowhere. Verify on the rig host (`tcpdump -ni any 'udp and dst port 10001'` shows it sending) and on the workstation (`tcpdump` shows **nothing** arriving). Fix: set the rig host's `remote.ip` to the workstation's current address and restart PipeWire. **Permanent fix:** give the workstation a **DHCP reservation** (reserve its address to its MAC on the router) so the lease never moves and `remote.ip` stays valid — RX is a *unicast push* so it cannot be subnet-scoped like the TX firewall rule below; pinning the IP is the only way to make it survive a lease change. |
+| ROC: `rig_rx_roc` silent / no packets arriving **even though the sender shows egress** (IP unchanged) | A **wedged ROC session on the rig host's sink** — distinct from the stale-`remote.ip` row above. The sender keeps putting correctly-addressed packets on the wire, so `tcpdump -eni ens18 'udp and dst port 10001'` on the rig shows them leaving with the right dest MAC and `tos 0x0`, **and both firewalls look innocent** (egress tcpdump runs after netfilter; OUTPUT policy is `ACCEPT`), yet the workstation's `tcpdump` sees ~0 arriving and `parecord -d rig_rx_roc` reads peak 0. Tell it apart from a real network/firewall drop: a plain `python -c 'socket…sendto' ws:10001` (or `nc -u`) from the rig **does** arrive — only the live ROC flow doesn't. **Trigger:** the ROC modules live in `pipewire.service`, so restarting only `pipewire-pulse.service` (e.g. to re-expose the Pulse TCP server) can leave the ROC sender's session stale without dropping the nodes. **Fix:** restart the service that actually owns ROC — `systemctl --user restart pipewire.service wireplumber.service` on the rig host (export `XDG_RUNTIME_DIR`/`DBUS_SESSION_BUS_ADDRESS` for `--user` over SSH). Verify: `tcpdump … dst port 10001` on the workstation jumps from ~0 to ~100/s and `rig_rx_roc` peak goes non-zero. |
+| ROC: RX works but **TX is silent** (`rig_tx_in` peak 0 on rig host) | The rig host's **ufw rule for the TX port (10005) allows only the workstation's old source IP**. TX packets leave the workstation (`tcpdump … dst port 10005` confirms) but ufw drops them. Quick fix: `sudo ufw allow proto udp from <workstation current IP> to any port 10005`. **Durable fix:** scope the rule to the trusted LAN subnet instead of one host — `sudo ufw allow proto udp from 192.168.3.0/24 to any port 10005` (then `ufw delete` the single-host rule) — so a DHCP lease change can't drop TX. (RX cannot be subnet-scoped the same way — see the row above; a DHCP reservation fixes both directions at once.) Both ROC directions break on a workstation IP change — RX via stale `remote.ip`, TX via the stale ufw source rule. |
 | ROC: frequency *wobbles* ±1000 ppm or worse | Default `gradual` latency-tuner over a jittery WAN over-corrects; set `roc.latency-tuner.profile = intact` on the **receiver** to disable clock-rate resampling (stable pitch, rare buffer-drift glitch). Do **not** enable the RTCP `control.port` between mismatched libroc versions (0.3↔0.4) — it makes tracking *worse*. |
+| ROC: TX **intermittently** drops symbols (clean steady-state, sporadic clipping) over WiFi | **WiFi power-save** on the workstation NIC coalesces traffic into bursts: measured here as packet gaps of 50–100+ ms that eat into the 150 ms `intact` TX buffer, so an occasional bad moment underruns. Steady-tone tests can look clean yet still bite under load. Check `iw dev <wlan> get power_save`; if `on`, disable it — runtime `sudo iw dev <wlan> set power_save off`, persistent via NetworkManager `/etc/NetworkManager/conf.d/wifi-powersave-off.conf` (`[connection]` / `wifi.powersave = 2`). Verify with `tcpdump … dst port 10005 -ttt`: the >100 ms gaps should vanish. Note the TX buffer is only as deep as the *receiver's* `sess.latency.msec` on `rig_tx_in` — raising it trades latency for jitter margin. |
 
 ---
 
@@ -632,6 +669,22 @@ Then in **WSJT-X → Settings → Audio → Soundcard**:
 
 The Pulse `rig_rx`/`rig_tx` tunnels can be left loaded as a fallback or removed from
 `30-rig-tunnel.conf`.
+
+> **Two entries in the dropdown — pick the ROC pair.** With both the Pulse tunnel
+> (`30-rig-tunnel.conf`) and ROC (`40-roc-rig.conf`) loaded, WSJT-X lists **two** RX
+> sources and **two** TX sinks:
+>
+> | Select (ROC, use this) | Avoid (Pulse fallback) |
+> |------------------------|------------------------|
+> | **Input** `ROC rig RX` (`rig_rx_roc`) | `Tunnel to …/alsa_input…` (`rig_rx`) |
+> | **Output** `ROC rig TX` (`rig_tx_roc`) | `Tunnel to …/alsa_output…` (`rig_tx`) |
+>
+> The `_roc` pair is the frequency-stable transport — it works on LAN *and* WAN/VPN and
+> is the one the latency/jitter and firewall tuning above applies to. The plain
+> `rig_rx`/`rig_tx` Pulse tunnels are the **LAN-only fallback** and drift in frequency over
+> a WAN (the reason ROC exists). **Don't mix transports** — choose the ROC pair for *both*
+> Input and Output, never one from each. Both `_roc` devices sitting `SUSPENDED` while idle
+> is normal; ROC resumes instantly when WSJT-X opens them.
 
 ### 6.5 TX latency / PTT-tail caveat
 
