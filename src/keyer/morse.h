@@ -34,7 +34,7 @@ struct code_style {
     float speed_low = 20.0f;
     float speed_high = 40.0f;
     float dah_dit_ratio_low = 3.0f;
-    float dah_dit_ratio_high = 3.5f;
+    float dah_dit_ratio_high = 3.0f;
     float weighting_low = 10.0f;
     float weighting_high = 90.0f;
     float extra_letterspace_percent_low = 0.0f;
