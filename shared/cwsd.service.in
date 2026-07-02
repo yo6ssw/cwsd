@@ -1,0 +1,42 @@
+[Unit]
+Description=CW sender daemon (cwsd)
+Documentation=https://github.com/yo6ssw/cwsd
+After=network.target
+# If you use the bundled udev rule's stable symlink, uncomment to wait for the rig:
+# After=dev-icom7300.device
+# BindsTo=dev-icom7300.device
+
+[Service]
+Type=simple
+# Reads a *system* config, not a per-user ~/.config — so no human account is
+# baked into the unit. Copy @CMAKE_INSTALL_FULL_SYSCONFDIR@/cwsd/cwsdrc.sample to
+# cwsdrc and edit rig.port / rig.model before starting.
+ExecStart=@CMAKE_INSTALL_FULL_BINDIR@/cwsd --config @CMAKE_INSTALL_FULL_SYSCONFDIR@/cwsd/cwsdrc
+ExecReload=/bin/kill -HUP $MAINPID
+Restart=always
+RestartSec=60
+
+# Run as a transient, unprivileged system user (no account to create or manage),
+# added to the groups that own the rig's serial line and the sound card.
+DynamicUser=yes
+SupplementaryGroups=dialout audio
+
+# The keyer thread runs at SCHED_FIFO with locked memory so element timing is not
+# stretched by ordinary scheduler preemption / page faults. A system service can
+# be granted these directly (a per-user service cannot).
+AmbientCapabilities=CAP_SYS_NICE CAP_IPC_LOCK
+LimitRTPRIO=20
+LimitMEMLOCK=infinity
+
+# Logs go to the journal (journalctl -u cwsd). For an on-disk log, set
+# logging.filename to /var/log/cwsd/cwsd.log — this creates and owns that dir.
+LogsDirectory=cwsd
+
+# Light sandboxing (cwsd only needs to read its config and touch /dev + sockets).
+ProtectHome=yes
+ProtectSystem=strict
+ProtectControlGroups=yes
+RestrictNamespaces=yes
+
+[Install]
+WantedBy=multi-user.target

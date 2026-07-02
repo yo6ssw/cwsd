@@ -103,7 +103,11 @@ group to open `/dev/snd/*`. List capture devices with `arecord -l`.
 
 ## Usage:
 
-`cwsd` will simply run in foreground. Config will be loaded from `~/.config/cwsdrc`
+`cwsd` will simply run in foreground. Config is loaded from `~/.config/cwsdrc`
+by default.
+
+`cwsd -c /path/to/cwsdrc` (or `--config`) reads config from an explicit path —
+used by the system service, which reads `/etc/cwsd/cwsdrc`.
 
 `cwsd -d` will make it daemonize.
 
@@ -116,15 +120,31 @@ group to open `/dev/snd/*`. List capture devices with `arecord -l`.
 
 After plugging in the Icom 7300 USB cable a `/dev/icom7300` symlink will be created pointing to the actual `/dev/ttyUSBx` device that the rig was allocated. The rule matches a specific rig serial — edit `ID_SERIAL_SHORT` for your unit (find it with `udevadm info -q property -n /dev/ttyUSB0 | grep ID_SERIAL_SHORT`). The user running cwsd must also be in the **`dialout`** group to open the serial port.
 
-## Installing as a systemd service
+## Installing as a system service
 
-- edit `shared/cwsd.service` and set the appropriate user/group
-- `sudo cp shared/cwsd.service /etc/systemd/system/`
-- `sudo systemctl daemon-reload`
-- `sudo systemctl enable --now cwsd.service`
+`make install` (or the packages/tarballs) installs a systemd unit to
+`/usr/lib/systemd/system/cwsd.service` and a sample config to
+`/etc/cwsd/cwsdrc.sample`. The unit runs cwsd as a **transient, unprivileged
+system user** (`DynamicUser=yes`) — no account to create and **no username baked
+into the unit** — added to the `dialout` and `audio` groups so it can reach the
+rig's serial line and the sound card. It reads `/etc/cwsd/cwsdrc` (a system path,
+not a per-user `~/.config`).
 
-The unit grants `CAP_SYS_NICE`/`CAP_IPC_LOCK` so the keyer thread can run at real-time
-priority for jitter-free element timing.
+```sh
+sudo install -m644 /etc/cwsd/cwsdrc.sample /etc/cwsd/cwsdrc   # then edit rig.port / rig.model
+sudo systemctl daemon-reload
+sudo systemctl enable --now cwsd
+journalctl -u cwsd -f                                          # logs
+```
+
+The unit grants `CAP_SYS_NICE`/`CAP_IPC_LOCK` (with `LimitRTPRIO`/`LimitMEMLOCK`)
+so the keyer thread can run at real-time priority for jitter-free element timing.
+Logs go to the journal; set `logging.filename` to `/var/log/cwsd/cwsd.log` for an
+on-disk copy (the unit provisions that directory via `LogsDirectory`).
+
+> For an interactive/desktop setup you can instead just run `cwsd` yourself (it
+> reads `~/.config/cwsdrc`) — the system service is for always-on / headless
+> stations.
 
 ## Authors
 

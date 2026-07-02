@@ -131,12 +131,21 @@ endif()
 
 include(GNUInstallDirs)
 install(TARGETS cwsd RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
-install(FILES cwsdrc.sample DESTINATION ${CMAKE_INSTALL_DOCDIR})
+# The system service reads ${sysconfdir}/cwsd/cwsdrc — ship the sample there so
+# the admin just copies it to cwsdrc (with prefix=/usr, sysconfdir is /etc).
+# Absolute (FULL) sysconfdir so it matches the unit's --config path: GNUInstallDirs
+# maps this to /etc/cwsd for prefix=/usr (the relative var would give /usr/etc).
+install(FILES cwsdrc.sample DESTINATION ${CMAKE_INSTALL_FULL_SYSCONFDIR}/cwsd)
 
 # systemd unit + udev rule land under <prefix>/lib/... — correct for package
 # builds (prefix=/usr). Toggle off for a bare binary-only install.
 option(CWSD_INSTALL_SYSTEM_FILES "Install the systemd unit and udev rule" ON)
 if(CWSD_INSTALL_SYSTEM_FILES)
-    install(FILES shared/cwsd.service DESTINATION lib/systemd/system)
+    # Fill @CMAKE_INSTALL_FULL_BINDIR@/@CMAKE_INSTALL_FULL_SYSCONFDIR@ so the unit's
+    # ExecStart matches wherever this prefix installs (no hardcoded /usr/local/bin).
+    configure_file(shared/cwsd.service.in
+                   "${CMAKE_CURRENT_BINARY_DIR}/cwsd.service" @ONLY)
+    install(FILES "${CMAKE_CURRENT_BINARY_DIR}/cwsd.service"
+            DESTINATION lib/systemd/system)
     install(FILES shared/80-ic7300.rules DESTINATION lib/udev/rules.d)
 endif()

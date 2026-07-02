@@ -18,19 +18,29 @@ void daemonize();
 INITIALIZE_EASYLOGGINGPP
 
 int main(int argc, char** argv) {
-  // TODO: implement proper cli args handling with help and all
+  std::string config_path = "~/.config/cwsdrc";
   for (int i = 1; i < argc; i++) {
     if (strcmp(argv[i], "-d") == 0) {
       daemonize();
-    }
-    if (strcmp(argv[i], "--version") == 0) {
+    } else if (strcmp(argv[i], "--version") == 0) {
       std::cout << "cwsd v" << cwsd_version_string() << std::endl;
       exit(EXIT_SUCCESS);
+    } else if (strcmp(argv[i], "-c") == 0 || strcmp(argv[i], "--config") == 0) {
+      if (i + 1 >= argc) {
+        std::cerr << argv[i] << " requires a path argument" << std::endl;
+        exit(EXIT_FAILURE);
+      }
+      config_path = argv[++i];
+    } else if (strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "--help") == 0) {
+      usage();
+    } else {
+      std::cerr << "unknown argument: " << argv[i] << std::endl;
+      usage();
     }
   }
 
   try {
-    auto config = read_config("~/.config/cwsdrc");
+    auto config = read_config(config_path);
     configure_logging(to_logging_level(config.logging.level),
                       config.logging.filename,
                       std::to_string(config.logging.max_size));
@@ -87,8 +97,12 @@ el::Level to_logging_level(std::string level_as_str) {
 }
 
 void usage() {
-  std::cerr << "Usage: cwsd /path/to/device" << std::endl;
-  exit(1);
+  std::cerr << "Usage: cwsd [options]\n"
+               "  -c, --config <path>   config file (default: ~/.config/cwsdrc)\n"
+               "  -d                    daemonize (double-fork)\n"
+               "      --version         print version and exit\n"
+               "  -h, --help            show this help\n";
+  exit(EXIT_FAILURE);
 }
 
 cwsd_config read_config(std::string path) {

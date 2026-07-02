@@ -29,7 +29,7 @@ if [ ! -f "$PREFIX/lib/libhamlib.a" ]; then
         sh scripts/build-hamlib-static.sh "$PREFIX"
 fi
 
-cmake -S . -B build-musl -DCMAKE_BUILD_TYPE=Release \
+cmake -S . -B build-musl -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr \
     -DCWSD_FULLY_STATIC=ON -DHAMLIB_STATIC_ROOT="$PREFIX"
 cmake --build build-musl -j"$(nproc)"
 
@@ -37,7 +37,7 @@ file build-musl/cwsd
 file build-musl/cwsd | grep -q 'statically linked' || { echo "ERROR: not statically linked" >&2; exit 1; }
 
 stage="cwsd-${VER}-linux-${ARCH}-static"
-DESTDIR="$PWD/${stage}" cmake --install build-musl --prefix /usr --strip
+DESTDIR="$PWD/${stage}" cmake --install build-musl --strip
 install -Dm644 README.md "${stage}/usr/share/doc/cwsd/README.md"
 install -Dm644 LICENSE   "${stage}/usr/share/doc/cwsd/LICENSE"
 tar -C "${stage}" -czf "${stage}.tar.gz" .

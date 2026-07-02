@@ -47,7 +47,7 @@ jobs:
 
       - name: Build cwsd (static hamlib)
         run: |
-          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release \
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr \
             -DCWSD_STATIC_HAMLIB=ON -DHAMLIB_STATIC_ROOT="$HOME/hamlib-static"
           cmake --build build -j"$(nproc)"
 
@@ -65,7 +65,7 @@ jobs:
           ver="${GITHUB_REF_NAME#v}"
           [ -n "$ver" ] || ver="$(git describe --tags --always 2>/dev/null || echo dev)"
           stage="cwsd-${ver}-linux-${{ matrix.arch }}"
-          DESTDIR="$PWD/${stage}" cmake --install build --prefix /usr --strip
+          DESTDIR="$PWD/${stage}" cmake --install build --strip
           install -Dm644 README.md "${stage}/usr/share/doc/cwsd/README.md"
           install -Dm644 LICENSE   "${stage}/usr/share/doc/cwsd/LICENSE"
           tar -C "${stage}" -czf "${stage}.tar.gz" .
