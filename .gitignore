@@ -10,3 +10,4 @@ cmake-build-*
 /static-prefix/
 /cwsd-*-linux-*
 *.tar.gz
+/dist/
