@@ -128,6 +128,16 @@ priority for jitter-free element timing.
 * YO6SSW - Adrian Scripcă <benishor@gmail.com>
 * YO3GEK - Matei Conovici <mconovici@gmail.com>
 
+## Related projects
+
+Part of a small suite of Linux ham-radio tools:
+
+- **[xlog2](https://github.com/yo6ssw/xlog2)** — logging application that drives
+  cwsd's `rigctld` (rig control) and `cwdaemon` (network CW), plays its Opus
+  rig-audio stream, and does real paddle keying through its `remote_key` service.
+- **[usb-paddles](https://github.com/yo6ssw/usb-paddles)** — USB Morse-paddle
+  firmware; pairs with cwsd's `remote_key` for paddle keying over the internet.
+
 ## License
 
 cwsd is licensed under the **GNU General Public License v3.0 or later**
