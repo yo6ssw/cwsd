@@ -1,0 +1,85 @@
+name: Portable builds
+
+# Builds self-contained cwsd binaries (static hamlib, dynamic only against
+# ABI-stable libc/libusb/libasound/libopus) for x86-64 and arm64, and attaches
+# a tarball to each release. arm64 uses GitHub's native arm64 runner (free for
+# public repos) — no emulation. This is the artifact for Raspberry Pi OS and any
+# distro not covered by the PPA/COPR native packages.
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write   # to attach assets to the release
+
+jobs:
+  portable:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { arch: x86_64, runner: ubuntu-24.04 }
+          - { arch: arm64,  runner: ubuntu-24.04-arm }
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0        # tags + history so the embedded version is right
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential cmake pkg-config curl \
+            libusb-1.0-0-dev libasound2-dev libopus-dev
+
+      - name: Cache static hamlib
+        id: hamlib-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/hamlib-static
+          key: hamlib-4.7.2-${{ matrix.arch }}-${{ hashFiles('scripts/build-hamlib-static.sh') }}
+
+      - name: Build static hamlib
+        if: steps.hamlib-cache.outputs.cache-hit != 'true'
+        run: HAMLIB_VERSION=4.7.2 scripts/build-hamlib-static.sh "$HOME/hamlib-static"
+
+      - name: Build cwsd (static hamlib)
+        run: |
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release \
+            -DCWSD_STATIC_HAMLIB=ON -DHAMLIB_STATIC_ROOT="$HOME/hamlib-static"
+          cmake --build build -j"$(nproc)"
+
+      - name: Verify hamlib is statically linked
+        run: |
+          echo "== ldd build/cwsd =="; ldd build/cwsd || true
+          if ldd build/cwsd | grep -qi hamlib; then
+            echo "ERROR: libhamlib is dynamically linked" >&2; exit 1
+          fi
+          ./build/cwsd --version || true
+
+      - name: Package tarball
+        id: pkg
+        run: |
+          ver="${GITHUB_REF_NAME#v}"
+          [ -n "$ver" ] || ver="$(git describe --tags --always 2>/dev/null || echo dev)"
+          stage="cwsd-${ver}-linux-${{ matrix.arch }}"
+          DESTDIR="$PWD/${stage}" cmake --install build --prefix /usr --strip
+          install -Dm644 README.md "${stage}/usr/share/doc/cwsd/README.md"
+          install -Dm644 LICENSE   "${stage}/usr/share/doc/cwsd/LICENSE"
+          tar -C "${stage}" -czf "${stage}.tar.gz" .
+          echo "tarball=${stage}.tar.gz" >> "$GITHUB_OUTPUT"
+          ls -lh "${stage}.tar.gz"
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.pkg.outputs.tarball }}
+          path: ${{ steps.pkg.outputs.tarball }}
+
+      - name: Attach to release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ steps.pkg.outputs.tarball }}
