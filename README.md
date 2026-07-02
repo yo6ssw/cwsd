@@ -1,5 +1,8 @@
 # CWSD
 
+> Part of the **[hamtools](https://github.com/yo6ssw/hamtools)** suite — see the
+> hub for how cwsd, xlog2 and usb-paddles combine into an integrated (remote) station.
+
 CW sender daemon.
 
 `cwsd` runs on Linux next to your transceiver (developed against the Icom IC-7300),
