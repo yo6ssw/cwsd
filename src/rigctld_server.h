@@ -5,7 +5,7 @@
 #define CWSD_RIGCTLD_SERVER_H
 
 #include <hamlib/rig.h>
-#include <sys/poll.h>
+#include <poll.h>
 
 #include <atomic>
 #include <cstdint>

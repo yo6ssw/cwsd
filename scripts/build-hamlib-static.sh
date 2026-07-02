@@ -28,11 +28,14 @@ echo "==> configuring (static, --without-readline)"
 # -fPIC so the archive can be linked into any executable; readline is only used by
 # the rigctl* tools (GPL) which we don't build — dropping it keeps the archive
 # LGPL-clean and lean.
+# EXTRA_CFLAGS lets the musl/Alpine build force-include <sys/types.h> — some
+# hamlib backends (e.g. harris) use mode_t without including it, which glibc
+# tolerates but musl does not.
 ./configure \
     --prefix="$PREFIX" \
     --enable-static --disable-shared \
     --without-readline \
-    CFLAGS="-O2 -fPIC" CXXFLAGS="-O2 -fPIC"
+    CFLAGS="-O2 -fPIC ${EXTRA_CFLAGS:-}" CXXFLAGS="-O2 -fPIC ${EXTRA_CFLAGS:-}"
 
 echo "==> building"
 make -j"$(nproc)"

@@ -83,3 +83,43 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: ${{ steps.pkg.outputs.tarball }}
+
+  # Fully static musl build (Alpine): a single dependency-free binary that runs
+  # on ANY Linux — glibc or musl, old or new, containers included. Built inside
+  # an Alpine container on the (glibc) runner via docker, so actions/checkout
+  # runs on the host and sidesteps the node-on-musl problem. arm64 uses the
+  # native arm64 runner, so its docker pulls the arm64 Alpine image — no emulation.
+  fullystatic-musl:
+    name: fully-static musl (${{ matrix.arch }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { arch: x86_64, runner: ubuntu-24.04 }
+          - { arch: arm64,  runner: ubuntu-24.04-arm }
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Build fully-static (musl) binary in Alpine
+        run: |
+          ver="${GITHUB_REF_NAME#v}"
+          [ -n "$ver" ] || ver="$(git describe --tags --always 2>/dev/null || echo dev)"
+          docker run -i --rm \
+            -e ARCH='${{ matrix.arch }}' -e VER="$ver" \
+            -v "$GITHUB_WORKSPACE":/src -w /src \
+            alpine:3.20 sh scripts/build-musl.sh
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: cwsd-musl-${{ matrix.arch }}
+          path: cwsd-*-linux-*-static.tar.gz
+
+      - name: Attach to release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: cwsd-*-linux-*-static.tar.gz

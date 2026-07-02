@@ -3,6 +3,8 @@
 
 #ifndef CWSD_UDP_SERVER_H
 #define CWSD_UDP_SERVER_H
+#include <sys/time.h>  // struct timeval (not pulled in transitively on musl)
+
 #include <cstdint>
 #include <cstdlib>
 #include <vector>

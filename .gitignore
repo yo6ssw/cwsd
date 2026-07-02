@@ -1,5 +1,12 @@
 build
+build-*/
 cmake-build-*
 .idea
 *.log
 *.log?
+# portable/static build outputs (see scripts/ + .github/workflows/portable.yml)
+/hamlib-static/
+/static-deps/
+/static-prefix/
+/cwsd-*-linux-*
+*.tar.gz
