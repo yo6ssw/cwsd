@@ -15,7 +15,7 @@ make -j $(nproc)          # or: cmake --build .  (incremental, from build/)
 sudo make install         # installs to /usr/local/bin
 ```
 
-- Requires CMake ≥ 3.25, a C++17 compiler, hamlib dev headers/libs, and (for the audio stream) ALSA + Opus dev libs (`target_link_libraries(cwsd hamlib Threads::Threads asound opus)`).
+- Requires CMake ≥ 3.25, a C++20 compiler, hamlib dev headers/libs, and (for the audio stream) ALSA + Opus dev libs (`target_link_libraries(cwsd hamlib Threads::Threads asound opus)`).
 - `cmake/GitVersion.cmake` generates `cwsdver-GitVersion.h` from git metadata at configure time; the version embeds the short hash and a `-dirty` flag.
 - Run: `./cwsd` (foreground), `./cwsd -d` (daemonize via double-fork), `./cwsd --version`.
 - There is **no test suite** and no linter configured.

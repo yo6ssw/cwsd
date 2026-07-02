@@ -42,7 +42,7 @@ make -j $(nproc)
 sudo make install
 ```
 
-Build requirements: CMake ≥ 3.25, a C++17 compiler, hamlib dev headers/libs, and — for the
+Build requirements: CMake ≥ 3.25, a C++20 compiler, hamlib dev headers/libs, and — for the
 audio stream — ALSA and Opus dev libs. On Debian/Ubuntu:
 
 ```
@@ -127,3 +127,13 @@ priority for jitter-free element timing.
 
 * YO6SSW - Adrian Scripcă <benishor@gmail.com>
 * YO3GEK - Matei Conovici <mconovici@gmail.com>
+
+## License
+
+cwsd is licensed under the **GNU General Public License v3.0 or later**
+(`GPL-3.0-or-later`). See [`LICENSE`](LICENSE) for the full text.
+
+Bundled third-party libraries under `src/libs/` keep their own licenses:
+
+* [easylogging++](https://github.com/abumq/easyloggingpp) — MIT
+* [fkYAML](https://github.com/fktn-k/fkYAML) (`node.hpp`) — MIT
