@@ -34,8 +34,24 @@ in the config and listens on its own port.
 > (RX **and** TX) over the LAN, see [`docs/wsjtx-remote-audio.md`](docs/wsjtx-remote-audio.md),
 > a step-by-step runbook for bridging the rig's USB soundcard with PipeWire-Pulse.
 
-## Instructions:
+## Install (Ubuntu PPA)
 
+Prebuilt packages for current Ubuntu releases are on the
+[`ppa:benishor/hamtools`](https://launchpad.net/~benishor/+archive/ubuntu/hamtools)
+PPA — no compiling:
+
+```
+sudo add-apt-repository ppa:benishor/hamtools
+sudo apt update
+sudo apt install cwsd
+```
+
+This installs the binary, a systemd service (see below) and
+`/etc/cwsd/cwsdrc.sample`. On other distributions — or Raspberry Pi OS — grab a
+self-contained binary from the [releases](https://github.com/yo6ssw/cwsd/releases)
+(static `x86_64`/`arm64` tarballs), or build from source below.
+
+## Build from source
 
 ```
 mkdir build
