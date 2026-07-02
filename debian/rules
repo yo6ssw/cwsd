@@ -1,0 +1,26 @@
+#!/usr/bin/make -f
+
+export DEB_BUILD_MAINT_OPTIONS = hardening=+all
+
+# cwsd derives its version from git, which isn't present in a source package.
+# Feed the upstream version (from the changelog) to GitVersion as a release build
+# so `cwsd --version` reports the real number instead of the 0.0.0 fallback.
+DEB_UPSTREAM_VERSION := $(shell dpkg-parsechangelog -S Version | sed 's/[-~].*//')
+VMAJOR := $(word 1,$(subst ., ,$(DEB_UPSTREAM_VERSION)))
+VMINOR := $(word 2,$(subst ., ,$(DEB_UPSTREAM_VERSION)))
+VPATCH := $(word 3,$(subst ., ,$(DEB_UPSTREAM_VERSION)))
+
+%:
+	dh $@ --buildsystem=cmake
+
+override_dh_auto_configure:
+	dh_auto_configure -- \
+	  -Dcwsdver_CUSTOM_VERSION_MAJOR=$(VMAJOR) \
+	  -Dcwsdver_CUSTOM_VERSION_MINOR=$(VMINOR) \
+	  -Dcwsdver_CUSTOM_VERSION_PATCH=$(VPATCH) \
+	  -Dcwsdver_FALLBACK_VERSION_TYPE=release
+
+# The service needs /etc/cwsd/cwsdrc (copied from the sample) and rig-specific
+# groups, so don't enable/start it automatically — the admin does after configuring.
+override_dh_installsystemd:
+	dh_installsystemd --no-enable --no-start

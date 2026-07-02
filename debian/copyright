@@ -1,0 +1,31 @@
+Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
+Upstream-Name: cwsd
+Source: https://github.com/yo6ssw/cwsd
+
+Files: *
+Copyright: 2024-2026 Adrian Scripcă (YO6SSW) <benishor@gmail.com>
+           2024-2026 Matei Conovici (YO3GEK) <mconovici@gmail.com>
+License: GPL-3.0+
+
+Files: src/libs/easylogging++.* src/libs/node.hpp
+Copyright: easylogging++ authors; fkYAML authors
+License: Expat
+
+License: GPL-3.0+
+ This program is free software: you can redistribute it and/or modify it
+ under the terms of the GNU General Public License as published by the Free
+ Software Foundation, either version 3 of the License, or (at your option)
+ any later version.
+ .
+ This program is distributed in the hope that it will be useful, but WITHOUT
+ ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
+ .
+ On Debian systems, the full text of the GNU General Public License version 3
+ can be found in /usr/share/common-licenses/GPL-3.
+
+License: Expat
+ Permission is hereby granted, free of charge, to any person obtaining a copy
+ of this software and associated documentation files (the "Software"), to deal
+ in the Software without restriction. The full MIT/Expat text ships with each
+ bundled library upstream.

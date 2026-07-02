@@ -1,0 +1,7 @@
+cwsd (1.3.2) noble; urgency=medium
+
+  * Initial Debian packaging; publish to the hamtools PPA.
+  * Runs as a dedicated, unprivileged DynamicUser systemd service reading
+    /etc/cwsd/cwsdrc (added to the dialout and audio groups).
+
+ -- Adrian Scripca <benishor@gmail.com>  Thu, 02 Jul 2026 13:00:00 +0300

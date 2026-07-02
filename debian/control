@@ -1,0 +1,27 @@
+Source: cwsd
+Section: hamradio
+Priority: optional
+Maintainer: Adrian Scripca <benishor@gmail.com>
+Build-Depends: debhelper-compat (= 13),
+ cmake,
+ pkg-config,
+ libhamlib-dev,
+ libasound2-dev,
+ libopus-dev
+Standards-Version: 4.6.2
+Homepage: https://github.com/yo6ssw/cwsd
+Rules-Requires-Root: no
+
+Package: cwsd
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Description: CW sender daemon for ham-radio transceivers
+ cwsd runs next to your transceiver and exposes it on the network through
+ several independent, individually toggled services: a Hamlib rigctld interface
+ (query/set frequency, mode, PTT, VFO), a cwdaemon interface that keys text as
+ Morse, an optional Opus-over-UDP receiver-audio stream, and an optional
+ timestamped-edge service for real paddle keying over the internet.
+ .
+ It ships a systemd service that runs cwsd as a dedicated, unprivileged system
+ user (added to the dialout and audio groups) reading its configuration from
+ /etc/cwsd/cwsdrc.
