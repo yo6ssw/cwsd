@@ -10,7 +10,7 @@ rigctld:
   port: 4532
 audio:
   enabled: false
-  device: default          # ALSA capture device, e.g. plughw:CARD=CODEC,DEV=0
+  device: pipewire         # RX via PipeWire (shared w/ WSJT-X); or plughw:CARD=CODEC,DEV=0 for the raw card
   port: 7355               # UDP port to bind; clients subscribe by sending here
   sample_rate: 8000        # opus rates only: 8000/12000/16000/24000/48000
   channels: 1
@@ -24,7 +24,7 @@ remote_key:                # real paddle keying over the internet (see README/CL
   enabled: false
   port: 6790               # UDP port to bind for the timestamped edge stream
   # device: /dev/icom7300  # serial device with DTR=key/RTS=PTT; defaults to rig.port
-  # Do NOT enable this together with cwdaemon on the same device: both drive DTR/RTS.
+  # Shares DTR/RTS with cwdaemon: you can enable both, just don't key through both at once.
   playout_ms: 150          # jitter-buffer depth; the rig lags the operator by this much
   silence_ms: 250          # force key-up if no packet (incl. keepalive) arrives for this long
   max_key_down_ms: 5000    # hard watchdog: never hold the key down longer than this

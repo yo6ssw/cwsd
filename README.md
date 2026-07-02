@@ -24,10 +24,11 @@ in the config and listens on its own port.
 
 <sub>Diagram source: [`docs/architecture.dot`](docs/architecture.dot) — regenerate with `dot -Tsvg docs/architecture.dot -o docs/architecture.svg`.</sub>
 
-> **Note:** `cwdaemon` and `remote_key` both drive the same DTR/RTS control lines, so do
-> **not** enable them together on the same serial device — they are alternative keying
-> front-ends. The audio stream has no configured target; clients subscribe (and NAT-punch)
-> by sending any datagram to its port, then must send a periodic keepalive.
+> **Note:** `cwdaemon` and `remote_key` both drive the same DTR/RTS control lines. You
+> can enable both on the same serial device, but don't key through them at once — they
+> are alternative keying front-ends, not meant to run simultaneously. The audio stream
+> has no configured target; clients subscribe (and NAT-punch) by sending any datagram to
+> its port, then must send a periodic keepalive.
 
 > **Running WSJT-X (or other soundcard apps) from another machine?** cwsd handles
 > CAT/PTT via `rigctld`, but its audio stream is RX-only. For full-duplex remote audio
@@ -70,8 +71,11 @@ sudo apt install libhamlib-dev libasound2-dev libopus-dev
 
 ## Configuration
 
-By default _cwsd_ will read configuration from `~/.config/cwsdrc`. Despite the `rc` name it
-is **YAML**. The `rig.model` field is a hamlib rig model number (e.g. `3073` = IC-7300). Each
+By default _cwsd_ will read configuration from `~/.config/cwsdrc` when run by hand.
+**Installed from a package and started via systemd, it instead reads the system
+config `/etc/cwsd/cwsdrc`** (see [Installing as a system service](#installing-as-a-system-service)
+below) — the unit runs as a `DynamicUser` with no home directory. Despite the `rc`
+name it is **YAML**. The `rig.model` field is a hamlib rig model number (e.g. `3073` = IC-7300). Each
 service has its own `enabled` flag and port. See `cwsdrc.sample` for the fully-commented
 template. A typical configuration:
 
@@ -88,15 +92,16 @@ rigctld:
   port: 4532
 audio:                     # Opus receiver-audio stream (off by default)
   enabled: false
-  device: plughw:0,0       # ALSA capture device (numeric index is most robust)
+  device: pipewire         # RX via PipeWire (shared w/ WSJT-X); or plughw:0,0 for the raw card
   port: 7355               # UDP port to bind; clients subscribe by sending here
-  sample_rate: 48000       # opus rates only: 8000/12000/16000/24000/48000
+  sample_rate: 8000        # opus rates only: 8000/12000/16000/24000/48000
   channels: 1
-  bitrate: 32000           # opus target bitrate in bits/s
+  bitrate: 96000           # opus target bitrate in bits/s
   frame_ms: 20             # opus frame size: 2.5/5/10/20/40/60
   client_timeout_ms: 10000 # drop subscribers silent longer than this
+  fec_loss_perc: 10        # expected packet loss %; drives Opus in-band FEC (0 off)
 remote_key:                # real paddle keying over the internet (off by default)
-  enabled: false           # do NOT enable together with cwdaemon on the same device
+  enabled: false           # shares DTR/RTS with cwdaemon; you can run both, just don't key through both at once
   port: 6790               # UDP port to bind for the timestamped edge stream
   # device: /dev/icom7300  # serial device with DTR=key/RTS=PTT; defaults to rig.port
   playout_ms: 150          # jitter-buffer depth; the rig lags the operator by this much
@@ -112,10 +117,18 @@ logging:
 
 ### ALSA capture device (audio stream)
 
-Use a numeric device string such as `plughw:0,0` rather than the by-name form
-`plughw:CARD=CODEC,DEV=0` — name resolution can fail when cwsd runs under systemd
-(`Cannot get card index for CODEC`). The user running cwsd must be in the **`audio`**
-group to open `/dev/snd/*`. List capture devices with `arecord -l`.
+The `device` string is passed straight to ALSA. Two sensible choices:
+
+- **`pipewire`** — read RX through PipeWire, sharing the rig's USB codec with other
+  apps (e.g. WSJT-X) instead of grabbing the raw card exclusively. Needs the PipeWire
+  ALSA plugin, and cwsd must have access to the session where PipeWire runs (so this
+  suits a desktop / user-session cwsd more than the hardened `DynamicUser` service).
+- **`plughw:0,0`** — capture the raw card directly. Prefer this numeric form over the
+  by-name `plughw:CARD=CODEC,DEV=0`; name resolution can fail when cwsd runs under
+  systemd (`Cannot get card index for CODEC`).
+
+Either way, the user running cwsd must be in the **`audio`** group to open `/dev/snd/*`.
+List capture devices with `arecord -l`.
 
 ## Usage:
 

@@ -40,7 +40,7 @@ sudo make install         # installs to /usr/local/bin
 
 ## Configuration
 
-Config is read from `~/.config/cwsdrc`. Despite the `rc` name it is **YAML**, parsed via the bundled fkYAML header (`src/libs/node.hpp`). See `cwsdrc.sample`. The `rig.model` field is a hamlib rig model number (e.g. `3073` = IC-7300). Each service (`cwdaemon`, `rigctld`) has its own `enabled` flag and TCP/UDP port.
+Config path: `cwsd` defaults to `~/.config/cwsdrc`, but `-c`/`--config` overrides it — and the installed systemd unit passes `--config /etc/cwsd/cwsdrc` (a *system* path, since under `DynamicUser=yes` there is no per-user `~/.config`). Despite the `rc` name it is **YAML**, parsed via the bundled fkYAML header (`src/libs/node.hpp`). See `cwsdrc.sample`. The `rig.model` field is a hamlib rig model number (e.g. `3073` = IC-7300). Each service (`cwdaemon`, `rigctld`) has its own `enabled` flag and TCP/UDP port.
 
 ## Architecture
 
@@ -71,7 +71,7 @@ flowchart LR
     rkey <--> op["operator paddle client"]
 ```
 
-(`cwdaemon` and `remote_key` are mutually exclusive on the same serial device — both drive DTR/RTS.)
+(`cwdaemon` and `remote_key` share the serial device's DTR/RTS lines — you can enable both, but don't key through both at once.)
 
 ### rigctld_server (`src/rigctld_server.*`)
 A partial reimplementation of hamlib's **rigctld TCP protocol** (default port 4532) so clients like WSJT-X/fldigi can query and set frequency, mode, PTT, VFO, etc.
@@ -97,7 +97,7 @@ Optional, fourth service (config section `remote_key`, disabled by default). Ena
 - **Wire format** (`remote_key_protocol.h`, operator→rig, big-endian like audio): header `magic(1) version(1) flags(1) session_id(2) edge_count(1)`, then `edge_count` × `{ ts_us(8) state(1) }`. `state` bit 0 = key-down, bit 1 = optional explicit PTT. Each packet carries up to `MAX_EDGES` (32) **recent edges as loss-recovery history**, deduped by source timestamp (idempotent), so one lost datagram is recovered by the next. A zero-edge packet is a **keepalive**; a changed `session_id` or `FLAG_SESSION_RESET` re-anchors the rig. This service deliberately **bypasses `udp_server`** (which null-terminates and strips trailing bytes — fine for text, fatal for binary) and binds its own socket.
 - **Two threads** (constructor spawns both, `stop()` joins; `update()` is a no-op): `receive_worker()` decodes packets, anchors the operator timeline to local `CLOCK_MONOTONIC` + `playout_ms`, and pushes scheduled edges into a mutex-guarded jitter buffer. `replay_worker()` runs at `SCHED_FIFO` + `mlockall` (same promotion as the cwdaemon keyer thread), drains due edges with `clock_nanosleep(TIMER_ABSTIME)`, and toggles **DTR = key / RTS = PTT** via the same ioctls as `key_interface`.
 - **Safety (three independent layers, all in `replay_worker()`):** a **PTT lead/tail sequencer** derived from key activity (assert `ptt_lead_ms` before a key-down, release `ptt_tail_ms` after the last key-up unless another key-down is imminent); a **stream-silence force-up** (`silence_ms`) that drops to a safe state and re-anchors when packets stop; and a **hard max-key-down watchdog** (`max_key_down_ms`) that force-releases the key regardless of protocol state — the backstop against a lost key-up edge leaving the transmitter keyed. The replay loop caps its sleep at 5 ms so these watchdogs keep ticking between sparse edges.
-- **Caveats:** do **not** enable this together with `cwdaemon` on the **same serial device** — both drive DTR/RTS and would fight over the control lines (they are alternative keying front-ends). `device` defaults to `rig.port` if unset. The **operator-side client is not part of this repo yet** — it would link the `keyer` engine behind an `hw_interface` whose `on_key_down`/`on_key_up` emit edges (and generate instant local sidetone for feel). Monitoring audio rides the `audio` Opus stream, which lags by the playout delay — so **semi-break-in**, not full QSK.
+- **Caveats:** you *can* enable this alongside `cwdaemon` on the **same serial device**, but both drive DTR/RTS, so don't key through both at once — they are alternative keying front-ends that would otherwise fight over the control lines. `device` defaults to `rig.port` if unset. The **operator-side client is not part of this repo yet** — it would link the `keyer` engine behind an `hw_interface` whose `on_key_down`/`on_key_up` emit edges (and generate instant local sidetone for feel). Monitoring audio rides the `audio` Opus stream, which lags by the playout delay — so **semi-break-in**, not full QSK.
 
 ### keyer engine (`src/keyer/`)
 The Morse heart of the daemon — a WinKeyer-compatible keyer written in an embedded-device style: a `keyer` namespace with a single global `data` struct (`keyer_internal_state`) and a `hw_interface` abstraction so the same engine could run on microcontroller or daemon. It is a **state machine**: states enumerated in `keyer_states.h` (`idle`, `send_element`, `key_down`, `tune`, `inter_element_space`, `inter_word_space`, `play`, `autospace`, `winkeyer`, `half_dot_gap`), each a class in its own `keyer_state_*.cpp`. `keyer::update()` ticks the current state. Supporting pieces: `circular_buffer.h`, profiles (speed/weighting/ratio), `morse.*` char patterns, and `oscillator`/`audio_renderer` for sidetone generation.
