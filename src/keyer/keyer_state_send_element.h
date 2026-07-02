@@ -7,21 +7,19 @@
 
 namespace keyer {
 
-    struct state_send_element : public state {
-        uint32_t time_to_exit_state{0};
+struct state_send_element : public state {
+  uint32_t time_to_exit_state{0};
 
-        void enter() override;
-        void exit() override;
-        state_type update(uint32_t now_ms) override;
+  void enter() override;
+  void exit() override;
+  state_type update(uint32_t now_ms) override;
 
-        state_type type() override {
-            return state_type::send_element;
-        }
+  state_type type() override { return state_type::send_element; }
 
-        static state *instance() {
-            static state_send_element instance_;
-            return &instance_;
-        }
-    };
-    
-}
+  static state* instance() {
+    static state_send_element instance_;
+    return &instance_;
+  }
+};
+
+}  // namespace keyer

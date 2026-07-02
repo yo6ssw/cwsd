@@ -7,19 +7,15 @@
 
 namespace keyer {
 
-    struct state_tune : state {
-        state_type update(uint32_t elapsed_ms) override {
-            return state_type::idle;
-        }
+struct state_tune : state {
+  state_type update(uint32_t elapsed_ms) override { return state_type::idle; }
 
-        state_type type() override {
-            return state_type::tune;
-        }
+  state_type type() override { return state_type::tune; }
 
-        static state *instance() {
-            static state_tune instance_;
-            return &instance_;
-        }
-    };
+  static state* instance() {
+    static state_tune instance_;
+    return &instance_;
+  }
+};
 
-}
+}  // namespace keyer
