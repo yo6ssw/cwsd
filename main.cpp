@@ -123,6 +123,9 @@ cwsd_config read_config(std::string path) {
 
   cfg.rig.model = root["rig"]["model"].get_value<int>();
   cfg.rig.port = root["rig"]["port"].get_value<std::string>();
+  if (root["rig"].contains("serial_speed")) {
+    cfg.rig.serial_speed = root["rig"]["serial_speed"].get_value<int>();
+  }
 
   cfg.cwdaemon.enabled = root["cwdaemon"]["enabled"].get_value<bool>();
   cfg.cwdaemon.port = root["cwdaemon"]["port"].get_value<int>();

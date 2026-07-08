@@ -23,7 +23,8 @@ struct rigctld_client {
 
 class rigctld_server {
  public:
-  rigctld_server(std::string device, int model, uint16_t listen_port);
+  rigctld_server(std::string device, int model, uint16_t listen_port,
+                 int serial_speed = 0);
   ~rigctld_server();
 
   void update();
@@ -49,6 +50,7 @@ class rigctld_server {
   rig_model_t rig_model;
   std::string device;
   uint16_t listen_port;
+  int serial_speed;
   std::thread worker;
   void start_listener();
   int server_fd;

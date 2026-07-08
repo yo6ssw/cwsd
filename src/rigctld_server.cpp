@@ -21,8 +21,12 @@ void rigctld_server::update() {}
 static int debug_callback(enum rig_debug_level_e level, rig_ptr_t user_data,
                           const char* message, va_list args);
 
-rigctld_server::rigctld_server(std::string dev, int model, uint16_t port)
-    : device(dev), rig_model(model), listen_port(port) {
+rigctld_server::rigctld_server(std::string dev, int model, uint16_t port,
+                               int serial_speed)
+    : device(dev),
+      rig_model(model),
+      listen_port(port),
+      serial_speed(serial_speed) {
   start_listener();
   rig_set_debug(RIG_DEBUG_ERR);
   rig_set_debug_callback(debug_callback, this);
@@ -159,6 +163,18 @@ bool rigctld_server::open_rig() {
           sizeof(rig->state.rigport.pathname) - 1);
 
   int result;
+
+  // Pin the serial rate when configured. Some hamlib backends default to a rate
+  // the local termios layer can't set (the QMX backend defaults to 256000, which
+  // serial_setup rejects -> rig_open returns -2 and the rig never connects). On
+  // USB CDC-ACM the value is ignored by the hardware, so any standard rate works.
+  if (serial_speed != 0) {
+    result = rig_set_conf(rig, rig_token_lookup(rig, "serial_speed"),
+                          std::to_string(serial_speed).c_str());
+    if (result != RIG_OK) {
+      throw std::runtime_error("rigctld failed to set serial_speed");
+    }
+  }
 
   result = rig_set_conf(rig, rig_token_lookup(rig, "rts_state"), "OFF");
   if (result != RIG_OK) {

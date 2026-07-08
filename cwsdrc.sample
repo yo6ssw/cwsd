@@ -1,6 +1,11 @@
 rig:
   port: /dev/icom7300
   model: 3073
+  # serial_speed: 115200   # only if hamlib's backend default rate is unusable.
+                           # The QRPLabs QMX backend (model 2057) defaults to
+                           # 256000 baud, which many termios layers reject, so
+                           # rig_open fails silently -> set a standard rate here
+                           # (USB CDC-ACM ignores the value anyway).
 cwdaemon:
   enabled: true
   port: 6789

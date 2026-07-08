@@ -83,6 +83,9 @@ template. A typical configuration:
 rig:
   port: /dev/icom7300      # stable symlink from the udev rule below
   model: 3073              # hamlib rig model: Icom IC-7300
+  # serial_speed: 115200   # override only if hamlib's backend default rate is
+                           # unusable (e.g. the QMX model 2057 defaults to 256000,
+                           # which many termios layers reject -> rig_open fails)
 cwdaemon:
   enabled: true
   port: 6789

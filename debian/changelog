@@ -1,3 +1,12 @@
+cwsd (1.3.3) noble; urgency=medium
+
+  * rigctld: add optional rig.serial_speed config. Some hamlib backends default
+    to a serial rate the local termios layer can't set (the QRPLabs QMX, model
+    2057, defaults to 256000), so rig_open() failed silently and rigctld
+    answered nothing to clients. Pin a standard rate to fix it.
+
+ -- Adrian Scripca <benishor@gmail.com>  Wed, 08 Jul 2026 06:52:38 +0300
+
 cwsd (1.3.2) noble; urgency=medium
 
   * Initial Debian packaging; publish to the hamtools PPA.

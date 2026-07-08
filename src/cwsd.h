@@ -26,6 +26,11 @@ struct cwsd_config {
   struct {
     std::string port;
     int model;
+    // 0 = leave hamlib's backend default. Set this when the backend default is
+    // a rate the local termios layer can't set (e.g. the QMX backend defaults
+    // to 256000, which serial_setup rejects -> rig_open fails). On USB CDC-ACM
+    // the value is ignored by the hardware, so any standard rate works.
+    int serial_speed = 0;
   } rig;
   audio_stream_config audio;
   remote_key_config remote_key;

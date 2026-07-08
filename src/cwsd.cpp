@@ -8,7 +8,8 @@
 cwsd::cwsd(cwsd_config cfg) : config(cfg) {
   initialize_signal_handler();
   if (cfg.rigctld.enabled) {
-    rigctld = new rigctld_server(cfg.rig.port, cfg.rig.model, cfg.rigctld.port);
+    rigctld = new rigctld_server(cfg.rig.port, cfg.rig.model, cfg.rigctld.port,
+                                 cfg.rig.serial_speed);
   }
   if (cfg.cwdaemon.enabled) {
     cwdaemon = new cwdaemon_server(cfg.rig.port, cfg.cwdaemon.port,
